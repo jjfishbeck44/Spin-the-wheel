@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spin the Wheel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f7f9fc;
+        }
+        #wheel {
+            width: 300px;
+            height: 300px;
+            border: 5px solid #000;
+            border-radius: 50%;
+            margin: 20px auto;
+            background: conic-gradient(
+                #FFD700 0% 20%,
+                #FF4500 20% 40%,
+                #1E90FF 40% 60%,
+                #32CD32 60% 80%,
+                #FF69B4 80% 100%
+            );
+            position: relative;
+        }
+        #pointer {
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 25px solid red;
+            margin: 0 auto;
+            position: absolute;
+            top: -25px;
+            left: 135px;
+        }
+        #spinButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #spinButton:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Spin the Wheel for Your Discount!</h1>
+    <div id="pointer"></div>
+    <div id="wheel"></div>
+    <button id="spinButton">Spin the Wheel</button>
+    <div id="result"></div>
+
+    <script>
+        const spinButton = document.getElementById("spinButton");
+        const resultDiv = document.getElementById("result");
+
+        spinButton.addEventListener("click", () => {
+            const discount = Math.floor(Math.random() * 9 + 1) * 10; // Random 10% to 90%
+            const rotation = Math.random() * 360; // Random rotation for the wheel
+            const wheel = document.getElementById("wheel");
+
+            // Apply rotation animation
+            wheel.style.transition = "transform 3s ease-out";
+            wheel.style.transform = `rotate(${rotation + 360 * 3}deg)`; // Add extra spins
+
+            setTimeout(() => {
+                resultDiv.textContent = `You got ${discount}% off!`;
+                wheel.style.transition = "none"; // Reset transition
+                wheel.style.transform = `rotate(${rotation % 360}deg)`; // Set final rotation
+            }, 3000); // Delay to match animation
+        });
+    </script>
+</body>
+</html>
