@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- viewport-fit=cover so we can use the iPhone safe-area insets -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Leitz Flow — Organize. Focus. Done.</title>
+  <meta name="description" content="A fast, offline productivity app: organize tasks into colour-coded folders and stay on task with a built-in focus timer." />
+
+  <!-- PWA / iOS home-screen support -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#C80016" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1a0306" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Leitz Flow" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">L<span class="brand-check">✓</span></span>
+        <div class="brand-text">
+          <h1>Leitz&nbsp;Flow</h1>
+          <p id="todayLabel">—</p>
+        </div>
+      </div>
+      <div class="header-stat" id="headerStat" title="Tasks done today">
+        <span id="doneToday">0</span>
+        <small>done today</small>
+      </div>
+    </header>
+
+    <!-- View: Tasks -->
+    <main id="view-tasks" class="view is-active">
+      <!-- Folder rail -->
+      <nav class="folder-rail" id="folderRail" aria-label="Folders"></nav>
+
+      <section class="progress-card" id="progressCard">
+        <div class="progress-info">
+          <strong id="progressTitle">All Tasks</strong>
+          <span id="progressMeta">No tasks yet</span>
+        </div>
+        <div class="progress-ring" id="progressRing" style="--pct:0">
+          <span id="progressPct">0%</span>
+        </div>
+      </section>
+
+      <ul class="task-list" id="taskList"></ul>
+      <p class="empty-state" id="emptyState" hidden>
+        Nothing here yet. Add your first task below — it stays on this device and works offline.
+      </p>
+    </main>
+
+    <!-- View: Focus -->
+    <main id="view-focus" class="view">
+      <section class="focus-stage">
+        <div class="focus-dial" id="focusDial" style="--pct:0">
+          <div class="focus-time" id="focusTime">25:00</div>
+          <div class="focus-phase" id="focusPhase">Focus</div>
+        </div>
+        <p class="focus-task" id="focusTaskLabel">Free focus session</p>
+        <div class="focus-controls">
+          <button class="btn-ghost" id="focusReset" aria-label="Reset timer">Reset</button>
+          <button class="btn-primary big" id="focusToggle">Start</button>
+          <button class="btn-ghost" id="focusSkip" aria-label="Skip phase">Skip</button>
+        </div>
+        <div class="focus-presets" id="focusPresets">
+          <button data-min="25" class="is-active">25 min</button>
+          <button data-min="15">15 min</button>
+          <button data-min="50">50 min</button>
+          <button data-min="5">5 min</button>
+        </div>
+        <div class="focus-summary">
+          <div><strong id="focusCount">0</strong><span>sessions today</span></div>
+          <div><strong id="focusMinutes">0</strong><span>focus minutes</span></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Quick add bar (only on tasks view) -->
+    <form class="composer" id="composer" autocomplete="off">
+      <button type="button" class="flag-btn" id="flagBtn" title="Set priority" aria-label="Set priority">⚑</button>
+      <input id="taskInput" type="text" placeholder="Add a task…  (try ‘Email Sam !today’)" enterkeyhint="done" />
+      <button type="submit" class="add-btn" aria-label="Add task">+</button>
+    </form>
+
+    <!-- Bottom tab bar -->
+    <nav class="tab-bar" role="tablist">
+      <button class="tab is-active" data-view="tasks" role="tab">
+        <span class="tab-ico">☰</span><span>Tasks</span>
+      </button>
+      <button class="tab" data-view="focus" role="tab">
+        <span class="tab-ico">◐</span><span>Focus</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- New folder dialog -->
+  <dialog id="folderDialog">
+    <form method="dialog" id="folderForm">
+      <h2>New Folder</h2>
+      <input id="folderName" type="text" placeholder="Folder name" maxlength="32" required />
+      <div class="swatches" id="folderSwatches"></div>
+      <menu>
+        <button value="cancel" class="btn-ghost">Cancel</button>
+        <button value="create" class="btn-primary">Create</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

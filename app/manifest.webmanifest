@@ -1,0 +1,17 @@
+{
+  "name": "Leitz Flow — Organize. Focus. Done.",
+  "short_name": "Leitz Flow",
+  "description": "A fast, offline productivity app: organize tasks into colour-coded folders and stay on task with a built-in focus timer.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#C80016",
+  "theme_color": "#C80016",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
