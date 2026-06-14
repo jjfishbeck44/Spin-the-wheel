@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <!-- viewport-fit=cover so we can use the iPhone safe-area insets -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Leitz Flow — Organize. Focus. Done.</title>
-  <meta name="description" content="A fast, offline productivity app: organize tasks into colour-coded folders and stay on task with a built-in focus timer." />
+  <title>Leitz Label Studio</title>
+  <meta name="description" content="Design and bulk-print labels for the Leitz Icon label maker — sized 1:1 for continuous cartridges, with QR codes and barcodes. Export PDF/PNG or print." />
 
-  <!-- PWA / iOS home-screen support -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#C80016" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#1a0306" media="(prefers-color-scheme: dark)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Leitz Flow" />
+  <meta name="apple-mobile-web-app-title" content="Label Studio" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
 
@@ -22,99 +20,200 @@
 </head>
 <body>
   <div id="app">
-    <!-- Header -->
     <header class="app-header">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">L<span class="brand-check">✓</span></span>
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 100 100" width="30" height="30">
+            <polygon points="30,24 90,24 90,76 30,76 12,50" fill="#fff"/>
+            <circle cx="29" cy="50" r="6" fill="#C80016"/>
+            <rect x="42" y="40" width="38" height="8" rx="4" fill="#C80016"/>
+            <rect x="42" y="54" width="28" height="8" rx="4" fill="#C80016"/>
+          </svg>
+        </span>
         <div class="brand-text">
-          <h1>Leitz&nbsp;Flow</h1>
-          <p id="todayLabel">—</p>
+          <h1>Label Studio</h1>
+          <p>for Leitz&nbsp;Icon</p>
         </div>
       </div>
-      <div class="header-stat" id="headerStat" title="Tasks done today">
-        <span id="doneToday">0</span>
-        <small>done today</small>
-      </div>
+      <div class="cartridge-badge" id="cartridgeBadge">88&nbsp;mm · 300&nbsp;dpi</div>
     </header>
 
-    <!-- View: Tasks -->
-    <main id="view-tasks" class="view is-active">
-      <!-- Folder rail -->
-      <nav class="folder-rail" id="folderRail" aria-label="Folders"></nav>
-
-      <section class="progress-card" id="progressCard">
-        <div class="progress-info">
-          <strong id="progressTitle">All Tasks</strong>
-          <span id="progressMeta">No tasks yet</span>
+    <!-- ============ DESIGN ============ -->
+    <main id="view-design" class="view is-active">
+      <section class="preview-wrap">
+        <div class="preview-scroll" id="previewScroll">
+          <canvas id="previewCanvas"></canvas>
         </div>
-        <div class="progress-ring" id="progressRing" style="--pct:0">
-          <span id="progressPct">0%</span>
-        </div>
+        <p class="preview-meta" id="previewMeta">—</p>
       </section>
 
-      <ul class="task-list" id="taskList"></ul>
-      <p class="empty-state" id="emptyState" hidden>
-        Nothing here yet. Add your first task below — it stays on this device and works offline.
-      </p>
+      <form class="controls" id="designForm" autocomplete="off">
+        <label class="field">
+          <span>Cartridge width</span>
+          <select id="d_width"></select>
+        </label>
+
+        <fieldset class="field seg">
+          <span>Label length</span>
+          <div class="segmented" role="group">
+            <button type="button" data-len="auto" class="is-active">Auto-fit</button>
+            <button type="button" data-len="fixed">Fixed</button>
+            <input id="d_length" type="number" min="10" max="2700" step="1" value="100" inputmode="numeric" />
+            <span class="unit">mm</span>
+          </div>
+        </fieldset>
+
+        <label class="field">
+          <span>Line 1</span>
+          <input id="d_line1" type="text" placeholder="GARAGE — SCREWS" maxlength="60" />
+        </label>
+        <label class="field">
+          <span>Line 2 <em>(optional)</em></span>
+          <input id="d_line2" type="text" placeholder="Bin A3 · M3–M6" maxlength="60" />
+        </label>
+
+        <div class="field-row">
+          <label class="chip-check"><input type="checkbox" id="d_bold" checked /> Bold</label>
+          <label class="field inline">
+            <span>Align</span>
+            <select id="d_align">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
+        <label class="field sub" id="d_qrWrap" hidden>
+          <span>QR contents</span>
+          <input id="d_qrData" type="text" placeholder="TOTE-014 or https://…" maxlength="300" />
+        </label>
+
+        <label class="chip-check block"><input type="checkbox" id="d_barcode" /> Add barcode (Code 128)</label>
+        <label class="field sub" id="d_bcWrap" hidden>
+          <span>Barcode value</span>
+          <input id="d_bcData" type="text" placeholder="TOTE-014" maxlength="80" />
+        </label>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <label class="field">
+            <span>Safe margin: <b id="d_marginVal">2</b> mm</span>
+            <input id="d_margin" type="range" min="0" max="6" step="0.5" value="2" />
+          </label>
+        </details>
+      </form>
+
+      <div class="actions">
+        <button class="btn-ghost" id="d_png">PNG</button>
+        <button class="btn-ghost" id="d_pdf">PDF</button>
+        <button class="btn-primary" id="d_print">Print</button>
+      </div>
     </main>
 
-    <!-- View: Focus -->
-    <main id="view-focus" class="view">
-      <section class="focus-stage">
-        <div class="focus-dial" id="focusDial" style="--pct:0">
-          <div class="focus-time" id="focusTime">25:00</div>
-          <div class="focus-phase" id="focusPhase">Focus</div>
+    <!-- ============ BULK ============ -->
+    <main id="view-bulk" class="view">
+      <section class="controls">
+        <div class="field-row">
+          <label class="field inline">
+            <span>Width</span>
+            <select id="b_width"></select>
+          </label>
+          <label class="field inline">
+            <span>Template</span>
+            <select id="b_template">
+              <option value="text-qr">Text + QR</option>
+              <option value="text">Text only</option>
+              <option value="text-barcode">Text + Barcode</option>
+              <option value="qr-only">QR only</option>
+            </select>
+          </label>
         </div>
-        <p class="focus-task" id="focusTaskLabel">Free focus session</p>
-        <div class="focus-controls">
-          <button class="btn-ghost" id="focusReset" aria-label="Reset timer">Reset</button>
-          <button class="btn-primary big" id="focusToggle">Start</button>
-          <button class="btn-ghost" id="focusSkip" aria-label="Skip phase">Skip</button>
+
+        <fieldset class="field seg">
+          <span>Label length</span>
+          <div class="segmented" role="group">
+            <button type="button" data-blen="auto" class="is-active">Auto-fit</button>
+            <button type="button" data-blen="fixed">Fixed</button>
+            <input id="b_length" type="number" min="10" max="2700" step="1" value="100" inputmode="numeric" />
+            <span class="unit">mm</span>
+          </div>
+        </fieldset>
+
+        <div class="seq-gen">
+          <strong>Quick sequence</strong>
+          <div class="seq-row">
+            <input id="seq_prefix" type="text" placeholder="TOTE-" maxlength="20" />
+            <input id="seq_start" type="number" value="1" min="0" inputmode="numeric" title="Start #" />
+            <input id="seq_count" type="number" value="10" min="1" max="999" inputmode="numeric" title="Count" />
+            <input id="seq_pad" type="number" value="3" min="0" max="6" inputmode="numeric" title="Digits" />
+            <button type="button" class="btn-ghost sm" id="seq_add">Insert</button>
+          </div>
         </div>
-        <div class="focus-presets" id="focusPresets">
-          <button data-min="25" class="is-active">25 min</button>
-          <button data-min="15">15 min</button>
-          <button data-min="50">50 min</button>
-          <button data-min="5">5 min</button>
-        </div>
-        <div class="focus-summary">
-          <div><strong id="focusCount">0</strong><span>sessions today</span></div>
-          <div><strong id="focusMinutes">0</strong><span>focus minutes</span></div>
-        </div>
+
+        <label class="field">
+          <span>Items — one per line. Use <code>|</code> for Line 1 | Line 2 | code</span>
+          <textarea id="b_items" rows="6" placeholder="TOTE-014 | Garage shelf B&#10;TOTE-015 | Winter gear&#10;DRILL-02 | Cordless · 18V"></textarea>
+        </label>
+
+        <div class="bulk-summary" id="bulkSummary">No items yet</div>
+        <div class="bulk-thumbs" id="bulkThumbs"></div>
       </section>
+
+      <div class="actions">
+        <button class="btn-ghost" id="b_pdf">Export PDF</button>
+        <button class="btn-primary" id="b_print">Print all</button>
+      </div>
     </main>
 
-    <!-- Quick add bar (only on tasks view) -->
-    <form class="composer" id="composer" autocomplete="off">
-      <button type="button" class="flag-btn" id="flagBtn" title="Set priority" aria-label="Set priority">⚑</button>
-      <input id="taskInput" type="text" placeholder="Add a task…  (try ‘Email Sam !today’)" enterkeyhint="done" />
-      <button type="submit" class="add-btn" aria-label="Add task">+</button>
-    </form>
+    <!-- ============ GUIDE ============ -->
+    <main id="view-guide" class="view">
+      <div class="guide">
+        <h2>Printing to your Leitz Icon</h2>
+        <p>This app designs labels at the exact size of your Leitz Icon
+        cartridges (88&nbsp;mm continuous by default) and renders them at the
+        printer's native <b>300&nbsp;dpi</b>, so output prints 1:1.</p>
 
-    <!-- Bottom tab bar -->
+        <h3>Getting a label onto the printer</h3>
+        <p>The Leitz Icon uses Leitz's own wireless protocol, which third-party
+        apps can't drive directly. So this app hands off a perfectly-sized
+        file and you send it the last step:</p>
+        <ol>
+          <li><b>Export PDF / PNG</b> — saves a label at true size. Open it in
+          the official <i>Leitz Icon Software</i> app (or your print workflow)
+          and print at <b>100% / actual size</b>.</li>
+          <li><b>Print</b> — opens the iOS print sheet. Choose <i>AirPrint</i>
+          if your setup supports it, or <b>Save to Files as PDF</b> and import
+          into the Leitz app.</li>
+        </ol>
+        <p class="tip">Always print at <b>100%</b> (no "fit to page" / scaling)
+        so the millimetres stay accurate.</p>
+
+        <h3>Cartridges</h3>
+        <p>Continuous widths 12–88&nbsp;mm, up to 2.7&nbsp;m long. Your
+        3.5&nbsp;in totes/tools labels = the <b>88&nbsp;mm</b> cartridge.</p>
+
+        <h3>Install as an app</h3>
+        <p>In Safari, tap <b>Share → Add to Home Screen</b>. It then runs
+        full-screen and offline, like a native app.</p>
+
+        <p class="muted">Your designs are saved on this device only. Not
+        affiliated with or endorsed by Leitz / Esselte.</p>
+      </div>
+    </main>
+
     <nav class="tab-bar" role="tablist">
-      <button class="tab is-active" data-view="tasks" role="tab">
-        <span class="tab-ico">☰</span><span>Tasks</span>
-      </button>
-      <button class="tab" data-view="focus" role="tab">
-        <span class="tab-ico">◐</span><span>Focus</span>
-      </button>
+      <button class="tab is-active" data-view="design" role="tab"><span class="tab-ico">✎</span><span>Design</span></button>
+      <button class="tab" data-view="bulk" role="tab"><span class="tab-ico">▤</span><span>Bulk</span></button>
+      <button class="tab" data-view="guide" role="tab"><span class="tab-ico">?</span><span>Guide</span></button>
     </nav>
   </div>
 
-  <!-- New folder dialog -->
-  <dialog id="folderDialog">
-    <form method="dialog" id="folderForm">
-      <h2>New Folder</h2>
-      <input id="folderName" type="text" placeholder="Folder name" maxlength="32" required />
-      <div class="swatches" id="folderSwatches"></div>
-      <menu>
-        <button value="cancel" class="btn-ghost">Cancel</button>
-        <button value="create" class="btn-primary">Create</button>
-      </menu>
-    </form>
-  </dialog>
+  <div class="toast" id="toast" hidden></div>
 
+  <script src="vendor/qrcode-generator.js"></script>
+  <script src="vendor/jsbarcode-code128.min.js"></script>
+  <script src="pdf.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

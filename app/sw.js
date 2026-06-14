@@ -1,10 +1,13 @@
-/* Leitz Flow service worker — cache-first offline shell. */
-const CACHE = 'leitz-flow-v1';
+/* Leitz Label Studio service worker — cache-first offline shell. */
+const CACHE = 'leitz-labels-v1';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './pdf.js',
+  './vendor/qrcode-generator.js',
+  './vendor/jsbarcode-code128.min.js',
   './manifest.webmanifest',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',

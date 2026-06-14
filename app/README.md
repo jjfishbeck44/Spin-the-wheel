@@ -1,54 +1,66 @@
-# Leitz Flow
+# Leitz Label Studio
 
-A fast, **offline-first productivity app** with a Leitz-inspired icon and brand
-look. It installs to the iOS (and Android/desktop) home screen as a Progressive
-Web App — no App Store, no build step, no backend. Everything is plain
-HTML/CSS/JS and your data stays on your device.
+An **offline-first label designer for the Leitz Icon label maker**, delivered as
+an installable iOS/Android/desktop **Progressive Web App**. It lays out labels
+at the exact size of Leitz Icon continuous cartridges and renders them at the
+printer's native **300 dpi**, so output prints **1:1**. No App Store, no build
+step, no backend — your designs stay on your device.
 
 ![App icon](icons/icon-512.png)
 
 ## Features
 
-- **Colour-coded folders** — organise tasks the way you'd organise Leitz
-  binders. Built-in smart views for **All** and **Today**.
-- **Quick capture** — type a task and add `!today`, `!tomorrow`, or
-  `!YYYY-MM-DD` to set a due date inline. Tap the ⚑ flag to cycle priority.
-- **Progress ring** — see completion at a glance per folder, plus a
-  "done today" counter.
-- **Built-in focus timer** — a Pomodoro-style dial (25/15/50/5 min presets)
-  with focus/break phases, a soft chime, and haptic buzz on completion. Start
-  a focus session directly from any task with the ◐ button.
-- **Works offline** — a service worker caches the whole app shell.
-- **iOS-native feel** — safe-area insets, standalone display, dark mode,
-  tab bar, and a home-screen icon.
+- **Label designer** — pick a cartridge width (12–88 mm; 88 mm = the 3.5″
+  totes/tools cartridge), auto-fit or fixed length, two text lines with
+  auto-sizing, bold + alignment, optional **QR code** and **Code 128 barcode**.
+  Live, true-to-size preview.
+- **Bulk / asset labeling** — paste a list (or generate a sequence like
+  `TOTE-001…TOTE-050`), choose a template (Text, Text + QR, Text + Barcode,
+  QR only), and produce the whole batch at once. Use `Line 1 | Line 2 | code`
+  per row for full control.
+- **Export & print** — lossless **PDF** (one label per page, exact mm) or
+  **PNG**, plus a **Print** sheet (AirPrint / Save to Files as PDF).
+- **Offline** via service worker; **dark mode**, safe-area insets, home-screen
+  install, native-feeling tab bar.
+
+## About printing to the Leitz Icon
+
+The Icon uses Leitz's own wireless protocol, which third-party apps can't drive
+directly (and iOS Safari has no Web Bluetooth). So this app produces a
+**perfectly-sized file** and you send it the last step — open the exported
+PDF/PNG in the official *Leitz Icon Software* app, or use the iOS print sheet —
+always printing at **100% / actual size** so the millimetres stay accurate. See
+the in-app **Guide** tab for details.
 
 ## Run it
 
-Because it registers a service worker, serve it over HTTP (not `file://`):
-
 ```bash
 cd app
-python3 -m http.server 8000
-# open http://localhost:8000
+python3 -m http.server 8000   # open http://localhost:8000
 ```
 
 ### Install on iPhone / iPad
 
-1. Open the app's URL in **Safari**.
-2. Tap the **Share** button → **Add to Home Screen**.
-3. Launch it from the new **Leitz Flow** icon — it runs full-screen like a
-   native app and works offline.
+1. Open the app URL in **Safari**.
+2. **Share → Add to Home Screen**.
+3. Launch **Label Studio** — full-screen and offline.
 
 ## Project layout
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | App shell / markup |
+| `index.html` | App shell: Design / Bulk / Guide tabs |
 | `styles.css` | Theming, layout, light + dark mode |
-| `app.js` | State, tasks, folders, focus timer (no dependencies) |
-| `manifest.webmanifest` | PWA metadata for home-screen install |
-| `sw.js` | Service worker for offline caching |
+| `app.js` | Rendering engine, designer, bulk, export/print (no build) |
+| `pdf.js` | Dependency-free PDF writer (lossless grayscale, 1 label/page) |
+| `vendor/qrcode-generator.js` | QR generation — MIT, Kazuhiko Arase |
+| `vendor/jsbarcode-code128.min.js` | Code 128 barcodes — MIT, JsBarcode |
+| `manifest.webmanifest` | PWA metadata |
+| `sw.js` | Service worker (offline cache) |
 | `icons/` | App icons (generated, full-bleed for iOS masking) |
 | `tools/make_icons.py` | Regenerates the icons (pure Python, no deps) |
 
 Regenerate icons with `python3 tools/make_icons.py`.
+
+*Not affiliated with or endorsed by Leitz / Esselte. "Leitz" and "Leitz Icon"
+are trademarks of their respective owner.*

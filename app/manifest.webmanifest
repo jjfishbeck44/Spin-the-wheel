@@ -1,7 +1,7 @@
 {
-  "name": "Leitz Flow — Organize. Focus. Done.",
-  "short_name": "Leitz Flow",
-  "description": "A fast, offline productivity app: organize tasks into colour-coded folders and stay on task with a built-in focus timer.",
+  "name": "Leitz Label Studio",
+  "short_name": "Label Studio",
+  "description": "Design and bulk-print labels for the Leitz Icon label maker — sized 1:1 for continuous cartridges, with QR codes and barcodes.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
