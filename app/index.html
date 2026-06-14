@@ -47,19 +47,41 @@
         <p class="preview-meta" id="previewMeta">—</p>
       </section>
 
+      <div class="template-rail" id="templateRail" aria-label="Templates"></div>
+
       <form class="controls" id="designForm" autocomplete="off">
-        <label class="field">
+        <fieldset class="field seg">
+          <span>Label type</span>
+          <div class="segmented" role="group">
+            <button type="button" data-type="continuous" class="is-active">Continuous</button>
+            <button type="button" data-type="diecut">Die-cut</button>
+          </div>
+        </fieldset>
+
+        <label class="field" id="d_widthWrap">
           <span>Cartridge width</span>
           <select id="d_width"></select>
         </label>
+        <label class="field" id="d_dieWrap" hidden>
+          <span>Die-cut size</span>
+          <select id="d_die"></select>
+        </label>
 
-        <fieldset class="field seg">
+        <fieldset class="field seg" id="d_lenWrap">
           <span>Label length</span>
           <div class="segmented" role="group">
             <button type="button" data-len="auto" class="is-active">Auto-fit</button>
             <button type="button" data-len="fixed">Fixed</button>
             <input id="d_length" type="number" min="10" max="2700" step="1" value="100" inputmode="numeric" />
             <span class="unit">mm</span>
+          </div>
+        </fieldset>
+
+        <fieldset class="field seg">
+          <span>Orientation</span>
+          <div class="segmented" role="group">
+            <button type="button" data-orient="h" class="is-active">Horizontal</button>
+            <button type="button" data-orient="v">Rotate 90°</button>
           </div>
         </fieldset>
 
@@ -84,16 +106,25 @@
         </div>
 
         <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
-        <label class="field sub" id="d_qrWrap" hidden>
-          <span>QR contents</span>
-          <input id="d_qrData" type="text" placeholder="TOTE-014 or https://…" maxlength="300" />
-        </label>
+        <div class="field sub" id="d_qrWrap" hidden>
+          <label class="field">
+            <span>QR contents</span>
+            <input id="d_qrData" type="text" placeholder="TOTE-014 or https://…" maxlength="300" />
+          </label>
+          <p class="hint">📷 Any phone camera scans a QR. Put a <b>web link</b> to
+          open a page (like the Home Depot app pulling up an item), or just an
+          ID like <code>TOTE-014</code>.</p>
+        </div>
 
         <label class="chip-check block"><input type="checkbox" id="d_barcode" /> Add barcode (Code 128)</label>
-        <label class="field sub" id="d_bcWrap" hidden>
-          <span>Barcode value</span>
-          <input id="d_bcData" type="text" placeholder="TOTE-014" maxlength="80" />
-        </label>
+        <div class="field sub" id="d_bcWrap" hidden>
+          <label class="field">
+            <span>Barcode value</span>
+            <input id="d_bcData" type="text" placeholder="TOTE-014" maxlength="80" />
+          </label>
+          <p class="hint">🔢 A 1-D barcode for warehouse / inventory scanner
+          apps. Stores a code only (no link). For phone scanning, prefer QR.</p>
+        </div>
 
         <details class="advanced">
           <summary>Advanced</summary>
@@ -114,14 +145,26 @@
     <!-- ============ BULK ============ -->
     <main id="view-bulk" class="view">
       <section class="controls">
+        <fieldset class="field seg">
+          <span>Label type</span>
+          <div class="segmented" role="group">
+            <button type="button" data-type="continuous" class="is-active">Continuous</button>
+            <button type="button" data-type="diecut">Die-cut</button>
+          </div>
+        </fieldset>
+
         <div class="field-row">
-          <label class="field inline">
+          <label class="field inline" id="b_widthWrap">
             <span>Width</span>
             <select id="b_width"></select>
           </label>
+          <label class="field inline" id="b_dieWrap" hidden>
+            <span>Die-cut size</span>
+            <select id="b_die"></select>
+          </label>
           <label class="field inline">
-            <span>Template</span>
-            <select id="b_template">
+            <span>Layout</span>
+            <select id="b_layout">
               <option value="text-qr">Text + QR</option>
               <option value="text">Text only</option>
               <option value="text-barcode">Text + Barcode</option>
@@ -130,13 +173,21 @@
           </label>
         </div>
 
-        <fieldset class="field seg">
+        <fieldset class="field seg" id="b_lenWrap">
           <span>Label length</span>
           <div class="segmented" role="group">
-            <button type="button" data-blen="auto" class="is-active">Auto-fit</button>
-            <button type="button" data-blen="fixed">Fixed</button>
+            <button type="button" data-len="auto" class="is-active">Auto-fit</button>
+            <button type="button" data-len="fixed">Fixed</button>
             <input id="b_length" type="number" min="10" max="2700" step="1" value="100" inputmode="numeric" />
             <span class="unit">mm</span>
+          </div>
+        </fieldset>
+
+        <fieldset class="field seg">
+          <span>Orientation</span>
+          <div class="segmented" role="group">
+            <button type="button" data-orient="h" class="is-active">Horizontal</button>
+            <button type="button" data-orient="v">Rotate 90°</button>
           </div>
         </fieldset>
 
@@ -189,9 +240,27 @@
         <p class="tip">Always print at <b>100%</b> (no "fit to page" / scaling)
         so the millimetres stay accurate.</p>
 
+        <h3>QR codes vs barcodes</h3>
+        <ul>
+          <li><b>QR code</b> — scannable by <i>any phone camera</i>. Encode a
+          <b>web link</b> and scanning opens that page (like scanning a product
+          in the Home Depot app to pull it up), or just store an ID such as
+          <code>TOTE-014</code>. Best choice for most labels.</li>
+          <li><b>Barcode (Code 128)</b> — the 1-D stripes used on shelves and
+          warehouses; great with dedicated <i>inventory-scanner apps</i>, but it
+          only holds a code (no link). Use QR if you'll scan with a phone.</li>
+        </ul>
+
+        <h3>Rotate &amp; length</h3>
+        <p>Use <b>Rotate 90°</b> to run text along the tape, and
+        <b>Auto-fit</b> or <b>Fixed</b> length to make labels exactly as long
+        as you need.</p>
+
         <h3>Cartridges</h3>
-        <p>Continuous widths 12–88&nbsp;mm, up to 2.7&nbsp;m long. Your
-        3.5&nbsp;in totes/tools labels = the <b>88&nbsp;mm</b> cartridge.</p>
+        <p>Continuous widths 12–88&nbsp;mm (up to 2.7&nbsp;m long) plus die-cut
+        sizes (36×88, 28×88, 26×88, 50×88, 59×102&nbsp;mm). Your
+        3.5&nbsp;in totes/tools labels = the <b>88&nbsp;mm</b> continuous
+        cartridge.</p>
 
         <h3>Install as an app</h3>
         <p>In Safari, tap <b>Share → Add to Home Screen</b>. It then runs

@@ -1,5 +1,5 @@
 /* Leitz Label Studio service worker — cache-first offline shell. */
-const CACHE = 'leitz-labels-v1';
+const CACHE = 'leitz-labels-v2';
 const ASSETS = [
   './',
   './index.html',

@@ -10,18 +10,30 @@ step, no backend — your designs stay on your device.
 
 ## Features
 
-- **Label designer** — pick a cartridge width (12–88 mm; 88 mm = the 3.5″
-  totes/tools cartridge), auto-fit or fixed length, two text lines with
-  auto-sizing, bold + alignment, optional **QR code** and **Code 128 barcode**.
-  Live, true-to-size preview.
+- **Starter templates** — one-tap presets: Storage tote, Tool/equipment,
+  Shelf/bin, Cable flag (rotated), Scan-to-open (QR link), Address, Shipping,
+  Name badge.
+- **Label designer** — **continuous** widths (12–88 mm; 88 mm = the 3.5″
+  totes/tools cartridge) or **die-cut** sizes (36×88, 28×88, 26×88, 50×88,
+  59×102 mm). Auto-fit or fixed length, **Rotate 90°** orientation, two
+  auto-sizing text lines, bold + alignment, optional **QR code** and **Code 128
+  barcode**. Live, true-to-size preview.
 - **Bulk / asset labeling** — paste a list (or generate a sequence like
-  `TOTE-001…TOTE-050`), choose a template (Text, Text + QR, Text + Barcode,
-  QR only), and produce the whole batch at once. Use `Line 1 | Line 2 | code`
-  per row for full control.
+  `TOTE-001…TOTE-050`), choose a layout (Text, Text + QR, Text + Barcode,
+  QR only), pick any cartridge/die-cut + orientation, and produce the whole
+  batch at once. Use `Line 1 | Line 2 | code` per row for full control.
 - **Export & print** — lossless **PDF** (one label per page, exact mm) or
   **PNG**, plus a **Print** sheet (AirPrint / Save to Files as PDF).
 - **Offline** via service worker; **dark mode**, safe-area insets, home-screen
   install, native-feeling tab bar.
+
+### QR vs barcode
+
+- **QR code** scans with any phone camera — encode a **web link** to open a
+  page (like scanning a product in a store app), or just store an ID. Best for
+  most labels.
+- **Code 128 barcode** is the 1-D stripe format for dedicated inventory-scanner
+  apps; it holds a code only (no link).
 
 ## About printing to the Leitz Icon
 
