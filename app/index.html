@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Leitz Label Studio</title>
+  <meta name="description" content="Design and bulk-print labels for the Leitz Icon label maker — sized 1:1 for continuous cartridges, with QR codes and barcodes. Export PDF/PNG or print." />
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#C80016" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1a0306" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Label Studio" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 100 100" width="30" height="30">
+            <polygon points="30,24 90,24 90,76 30,76 12,50" fill="#fff"/>
+            <circle cx="29" cy="50" r="6" fill="#C80016"/>
+            <rect x="42" y="40" width="38" height="8" rx="4" fill="#C80016"/>
+            <rect x="42" y="54" width="28" height="8" rx="4" fill="#C80016"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <h1>Label Studio</h1>
+          <p>for Leitz&nbsp;Icon</p>
+        </div>
+      </div>
+      <div class="cartridge-badge" id="cartridgeBadge">88&nbsp;mm · 300&nbsp;dpi</div>
+    </header>
+
+    <!-- ============ DESIGN ============ -->
+    <main id="view-design" class="view is-active">
+      <section class="preview-wrap">
+        <div class="preview-scroll" id="previewScroll">
+          <canvas id="previewCanvas"></canvas>
+        </div>
+        <p class="preview-meta" id="previewMeta">—</p>
+      </section>
+
+      <div class="template-rail" id="templateRail" aria-label="Templates"></div>
+
+      <form class="controls" id="designForm" autocomplete="off">
+        <fieldset class="field seg">
+          <span>Label type</span>
+          <div class="segmented" role="group">
+            <button type="button" data-type="continuous" class="is-active">Continuous</button>
+            <button type="button" data-type="diecut">Die-cut</button>
+          </div>
+        </fieldset>
+
+        <label class="field" id="d_widthWrap">
+          <span>Cartridge width</span>
+          <select id="d_width"></select>
+        </label>
+        <label class="field" id="d_dieWrap" hidden>
+          <span>Die-cut size</span>
+          <select id="d_die"></select>
+        </label>
+
+        <fieldset class="field seg" id="d_lenWrap">
+          <span>Label length</span>
+          <div class="segmented" role="group">
+            <button type="button" data-len="auto" class="is-active">Auto-fit</button>
+            <button type="button" data-len="fixed">Fixed</button>
+            <input id="d_length" type="number" min="10" max="2700" step="1" value="100" inputmode="numeric" />
+            <span class="unit">mm</span>
+          </div>
+        </fieldset>
+
+        <fieldset class="field seg">
+          <span>Orientation</span>
+          <div class="segmented" role="group">
+            <button type="button" data-orient="h" class="is-active">Horizontal</button>
+            <button type="button" data-orient="v">Rotate 90°</button>
+          </div>
+        </fieldset>
+
+        <label class="field">
+          <span>Line 1</span>
+          <input id="d_line1" type="text" placeholder="GARAGE — SCREWS" maxlength="60" />
+        </label>
+        <label class="field">
+          <span>Line 2 <em>(optional)</em></span>
+          <input id="d_line2" type="text" placeholder="Bin A3 · M3–M6" maxlength="60" />
+        </label>
+
+        <div class="field-row">
+          <label class="chip-check"><input type="checkbox" id="d_bold" checked /> Bold</label>
+          <label class="field inline">
+            <span>Align</span>
+            <select id="d_align">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
+        <div class="field sub" id="d_qrWrap" hidden>
+          <label class="field">
+            <span>QR contents</span>
+            <input id="d_qrData" type="text" placeholder="TOTE-014 or https://…" maxlength="300" />
+          </label>
+          <p class="hint">📷 Any phone camera scans a QR. Put a <b>web link</b> to
+          open a page (like the Home Depot app pulling up an item), or just an
+          ID like <code>TOTE-014</code>.</p>
+        </div>
+
+        <label class="chip-check block"><input type="checkbox" id="d_barcode" /> Add barcode (Code 128)</label>
+        <div class="field sub" id="d_bcWrap" hidden>
+          <label class="field">
+            <span>Barcode value</span>
+            <input id="d_bcData" type="text" placeholder="TOTE-014" maxlength="80" />
+          </label>
+          <p class="hint">🔢 A 1-D barcode for warehouse / inventory scanner
+          apps. Stores a code only (no link). For phone scanning, prefer QR.</p>
+        </div>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <label class="field">
+            <span>Safe margin: <b id="d_marginVal">2</b> mm</span>
+            <input id="d_margin" type="range" min="0" max="6" step="0.5" value="2" />
+          </label>
+        </details>
+      </form>
+
+      <div class="actions">
+        <button class="btn-ghost" id="d_png">PNG</button>
+        <button class="btn-ghost" id="d_pdf">PDF</button>
+        <button class="btn-primary" id="d_print">Print</button>
+      </div>
+    </main>
+
+    <!-- ============ BULK ============ -->
+    <main id="view-bulk" class="view">
+      <section class="controls">
+        <fieldset class="field seg">
+          <span>Label type</span>
+          <div class="segmented" role="group">
+            <button type="button" data-type="continuous" class="is-active">Continuous</button>
+            <button type="button" data-type="diecut">Die-cut</button>
+          </div>
+        </fieldset>
+
+        <div class="field-row">
+          <label class="field inline" id="b_widthWrap">
+            <span>Width</span>
+            <select id="b_width"></select>
+          </label>
+          <label class="field inline" id="b_dieWrap" hidden>
+            <span>Die-cut size</span>
+            <select id="b_die"></select>
+          </label>
+          <label class="field inline">
+            <span>Layout</span>
+            <select id="b_layout">
+              <option value="text-qr">Text + QR</option>
+              <option value="text">Text only</option>
+              <option value="text-barcode">Text + Barcode</option>
+              <option value="qr-only">QR only</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset class="field seg" id="b_lenWrap">
+          <span>Label length</span>
+          <div class="segmented" role="group">
+            <button type="button" data-len="auto" class="is-active">Auto-fit</button>
+            <button type="button" data-len="fixed">Fixed</button>
+            <input id="b_length" type="number" min="10" max="2700" step="1" value="100" inputmode="numeric" />
+            <span class="unit">mm</span>
+          </div>
+        </fieldset>
+
+        <fieldset class="field seg">
+          <span>Orientation</span>
+          <div class="segmented" role="group">
+            <button type="button" data-orient="h" class="is-active">Horizontal</button>
+            <button type="button" data-orient="v">Rotate 90°</button>
+          </div>
+        </fieldset>
+
+        <div class="seq-gen">
+          <strong>Quick sequence</strong>
+          <div class="seq-row">
+            <input id="seq_prefix" type="text" placeholder="TOTE-" maxlength="20" />
+            <input id="seq_start" type="number" value="1" min="0" inputmode="numeric" title="Start #" />
+            <input id="seq_count" type="number" value="10" min="1" max="999" inputmode="numeric" title="Count" />
+            <input id="seq_pad" type="number" value="3" min="0" max="6" inputmode="numeric" title="Digits" />
+            <button type="button" class="btn-ghost sm" id="seq_add">Insert</button>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Items — one per line. Use <code>|</code> for Line 1 | Line 2 | code</span>
+          <textarea id="b_items" rows="6" placeholder="TOTE-014 | Garage shelf B&#10;TOTE-015 | Winter gear&#10;DRILL-02 | Cordless · 18V"></textarea>
+        </label>
+
+        <div class="bulk-summary" id="bulkSummary">No items yet</div>
+        <div class="bulk-thumbs" id="bulkThumbs"></div>
+      </section>
+
+      <div class="actions">
+        <button class="btn-ghost" id="b_pdf">Export PDF</button>
+        <button class="btn-primary" id="b_print">Print all</button>
+      </div>
+    </main>
+
+    <!-- ============ GUIDE ============ -->
+    <main id="view-guide" class="view">
+      <div class="guide">
+        <h2>Printing to your Leitz Icon</h2>
+        <p>This app designs labels at the exact size of your Leitz Icon
+        cartridges (88&nbsp;mm continuous by default) and renders them at the
+        printer's native <b>300&nbsp;dpi</b>, so output prints 1:1.</p>
+
+        <h3>Getting a label onto the printer</h3>
+        <p>The Leitz Icon uses Leitz's own wireless protocol, which third-party
+        apps can't drive directly. So this app hands off a perfectly-sized
+        file and you send it the last step:</p>
+        <ol>
+          <li><b>Export PDF / PNG</b> — saves a label at true size. Open it in
+          the official <i>Leitz Icon Software</i> app (or your print workflow)
+          and print at <b>100% / actual size</b>.</li>
+          <li><b>Print</b> — opens the iOS print sheet. Choose <i>AirPrint</i>
+          if your setup supports it, or <b>Save to Files as PDF</b> and import
+          into the Leitz app.</li>
+        </ol>
+        <p class="tip">Always print at <b>100%</b> (no "fit to page" / scaling)
+        so the millimetres stay accurate.</p>
+
+        <h3>QR codes vs barcodes</h3>
+        <ul>
+          <li><b>QR code</b> — scannable by <i>any phone camera</i>. Encode a
+          <b>web link</b> and scanning opens that page (like scanning a product
+          in the Home Depot app to pull it up), or just store an ID such as
+          <code>TOTE-014</code>. Best choice for most labels.</li>
+          <li><b>Barcode (Code 128)</b> — the 1-D stripes used on shelves and
+          warehouses; great with dedicated <i>inventory-scanner apps</i>, but it
+          only holds a code (no link). Use QR if you'll scan with a phone.</li>
+        </ul>
+
+        <h3>Rotate &amp; length</h3>
+        <p>Use <b>Rotate 90°</b> to run text along the tape, and
+        <b>Auto-fit</b> or <b>Fixed</b> length to make labels exactly as long
+        as you need.</p>
+
+        <h3>Cartridges</h3>
+        <p>Continuous widths 12–88&nbsp;mm (up to 2.7&nbsp;m long) plus die-cut
+        sizes (36×88, 28×88, 26×88, 50×88, 59×102&nbsp;mm). Your
+        3.5&nbsp;in totes/tools labels = the <b>88&nbsp;mm</b> continuous
+        cartridge.</p>
+
+        <h3>Install as an app</h3>
+        <p>In Safari, tap <b>Share → Add to Home Screen</b>. It then runs
+        full-screen and offline, like a native app.</p>
+
+        <p class="muted">Your designs are saved on this device only. Not
+        affiliated with or endorsed by Leitz / Esselte.</p>
+      </div>
+    </main>
+
+    <nav class="tab-bar" role="tablist">
+      <button class="tab is-active" data-view="design" role="tab"><span class="tab-ico">✎</span><span>Design</span></button>
+      <button class="tab" data-view="bulk" role="tab"><span class="tab-ico">▤</span><span>Bulk</span></button>
+      <button class="tab" data-view="guide" role="tab"><span class="tab-ico">?</span><span>Guide</span></button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="vendor/qrcode-generator.js"></script>
+  <script src="vendor/jsbarcode-code128.min.js"></script>
+  <script src="pdf.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
