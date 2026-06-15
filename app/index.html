@@ -109,6 +109,16 @@
               <option value="center">Center</option>
             </select>
           </label>
+          <label class="field inline">
+            <span>Font</span>
+            <select id="d_font">
+              <option value="system">System</option>
+              <option value="rounded">Rounded</option>
+              <option value="condensed">Condensed</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Mono</option>
+            </select>
+          </label>
         </div>
 
         <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
@@ -135,13 +145,21 @@
         <label class="chip-check block"><input type="checkbox" id="d_logo" /> Add logo / image</label>
         <div class="field sub" id="d_logoWrap" hidden>
           <input type="file" id="d_logoFile" accept="image/*" hidden />
-          <div class="logo-actions">
-            <button type="button" class="btn-ghost sm" id="d_logoChange">Choose image…</button>
-            <button type="button" class="btn-ghost sm" id="d_logoClear">Remove</button>
-          </div>
-          <p class="hint">🖼️ Placed at the left of the label. Use a high-contrast
-          (ideally black) PNG/JPG — labels print in monochrome. Shared with the
-          Bulk tab.</p>
+          <div class="logo-gallery" id="d_logoGallery"></div>
+          <fieldset class="field seg">
+            <span>Position</span>
+            <div class="segmented" role="group">
+              <button type="button" data-pos="left" class="is-active">Left</button>
+              <button type="button" data-pos="right">Right</button>
+            </div>
+          </fieldset>
+          <p class="hint">🖼️ Tap a logo to use it, ＋ to add more, ✕ to delete.
+          Use high-contrast (ideally black) art — labels print in monochrome.
+          Your logos are shared with the Bulk tab.</p>
+        </div>
+
+        <div class="save-row">
+          <button type="button" class="btn-ghost" id="saveDesignBtn">☆ Save current design</button>
         </div>
 
         <details class="advanced">
@@ -201,13 +219,25 @@
           </div>
         </fieldset>
 
-        <fieldset class="field seg">
-          <span>Orientation</span>
-          <div class="segmented" role="group">
-            <button type="button" data-orient="h" class="is-active">Horizontal</button>
-            <button type="button" data-orient="v">Rotate 90°</button>
-          </div>
-        </fieldset>
+        <div class="field-row">
+          <fieldset class="field seg" style="flex:1">
+            <span>Orientation</span>
+            <div class="segmented" role="group">
+              <button type="button" data-orient="h" class="is-active">Horizontal</button>
+              <button type="button" data-orient="v">Rotate 90°</button>
+            </div>
+          </fieldset>
+          <label class="field inline">
+            <span>Font</span>
+            <select id="b_font">
+              <option value="system">System</option>
+              <option value="rounded">Rounded</option>
+              <option value="condensed">Condensed</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Mono</option>
+            </select>
+          </label>
+        </div>
 
         <div class="seq-gen">
           <strong>Quick sequence</strong>
@@ -234,11 +264,15 @@
         <label class="chip-check block"><input type="checkbox" id="b_logo" /> Include logo on every label</label>
         <div class="field sub" id="b_logoWrap" hidden>
           <input type="file" id="b_logoFile" accept="image/*" hidden />
-          <div class="logo-actions">
-            <button type="button" class="btn-ghost sm" id="b_logoChange">Choose image…</button>
-            <button type="button" class="btn-ghost sm" id="b_logoClear">Remove</button>
-          </div>
-          <p class="hint">🖼️ Shared with the Design tab.</p>
+          <div class="logo-gallery" id="b_logoGallery"></div>
+          <fieldset class="field seg">
+            <span>Position</span>
+            <div class="segmented" role="group">
+              <button type="button" data-pos="left" class="is-active">Left</button>
+              <button type="button" data-pos="right">Right</button>
+            </div>
+          </fieldset>
+          <p class="hint">🖼️ Tap a logo to use it, ＋ to add more. Shared with the Design tab.</p>
         </div>
 
         <div class="bulk-summary" id="bulkSummary">No items yet</div>
@@ -248,6 +282,16 @@
       <div class="actions">
         <button class="btn-ghost" id="b_pdf">Export PDF</button>
         <button class="btn-primary" id="b_print">Print all</button>
+      </div>
+    </main>
+
+    <!-- ============ SAVED ============ -->
+    <main id="view-saved" class="view">
+      <div class="saved-wrap">
+        <h2 class="saved-title">Saved designs</h2>
+        <p class="saved-sub">Reusable labels saved on this device. Tap <b>Load</b>
+        to open one in the Design tab.</p>
+        <div class="saved-list" id="savedList"></div>
       </div>
     </main>
 
@@ -308,6 +352,7 @@
     <nav class="tab-bar" role="tablist">
       <button class="tab is-active" data-view="design" role="tab"><span class="tab-ico">✎</span><span>Design</span></button>
       <button class="tab" data-view="bulk" role="tab"><span class="tab-ico">▤</span><span>Bulk</span></button>
+      <button class="tab" data-view="saved" role="tab"><span class="tab-ico">★</span><span>Saved</span></button>
       <button class="tab" data-view="guide" role="tab"><span class="tab-ico">?</span><span>Guide</span></button>
     </nav>
   </div>

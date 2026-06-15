@@ -12,6 +12,7 @@
   const STORE_KEY = 'leitzlabels.v2';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // Continuous cartridge widths (mm). 88 = the 3.5" totes/tools cartridge.
   const WIDTHS = [88, 61, 57, 50, 39, 32, 25, 19, 12];
@@ -36,20 +37,31 @@
     { id: 'badge', name: '🪪 Name badge', spec: { type: 'continuous', widthMm: 57, orient: 'h', lengthMode: 'fixed', lengthMm: 90, line1: 'ALEX MORGAN', line2: 'Operations', align: 'center', qr: false, barcode: false } },
   ];
 
+  // Font choices (system fonts only — no downloads, works offline).
+  const FONTS = {
+    system: { name: 'System', css: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' },
+    rounded: { name: 'Rounded', css: '"SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", system-ui, sans-serif' },
+    condensed: { name: 'Condensed', css: '"Arial Narrow", "Helvetica Neue Condensed", "Roboto Condensed", sans-serif' },
+    serif: { name: 'Serif', css: 'Georgia, "Times New Roman", "Noto Serif", serif' },
+    mono: { name: 'Mono', css: '"SF Mono", Menlo, Consolas, "Roboto Mono", monospace' },
+  };
+
   const defaultDesign = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01',
-    bold: true, align: 'left',
-    qr: true, qrData: 'TOTE-01', barcode: false, bcData: '', logo: false, marginMm: 2,
+    bold: true, align: 'left', font: 'system',
+    qr: true, qrData: 'TOTE-01', barcode: false, bcData: '',
+    logo: false, logoId: null, logoPos: 'left', marginMm: 2,
   });
   const defaultBulk = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
-    lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', logo: false, items: '',
+    lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', font: 'system',
+    logo: false, logoId: null, logoPos: 'left', items: '',
   });
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
-    settings: { units: 'mm' }, assets: { logo: null },
+    settings: { units: 'mm' }, assets: { logos: [] }, saved: [],
   });
 
   let state = load();
@@ -59,10 +71,20 @@
       if (raw) {
         const p = JSON.parse(raw);
         const d = defaults();
-        return {
+        const s = {
           design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
-          settings: { ...d.settings, ...p.settings }, assets: { ...d.assets, ...p.assets },
+          settings: { ...d.settings, ...p.settings },
+          assets: { logos: (p.assets && p.assets.logos) || [] },
+          saved: p.saved || [],
         };
+        // Migrate the old single-logo asset to the new gallery.
+        if (p.assets && p.assets.logo && !s.assets.logos.length) {
+          const id = uid();
+          s.assets.logos = [{ id, url: p.assets.logo }];
+          if (s.design.logo) s.design.logoId = id;
+          if (s.bulk.logo) s.bulk.logoId = id;
+        }
+        return s;
       }
     } catch (e) {}
     return defaults();
@@ -75,21 +97,27 @@
   const mmToU = v => unit() === 'in' ? v / 25.4 : v;
   const fmtU = v => unit() === 'in' ? (v / 25.4).toFixed(2) : Math.round(v).toString();
 
-  /* ---------------- Logo asset ---------------- */
-  let logoImg = null;
-  function loadLogoImg(url, cb) {
-    if (!url) { logoImg = null; if (cb) cb(); return; }
+  /* ---------------- Logo gallery ---------------- */
+  const logoImgs = {};                 // id -> HTMLImageElement (decoded)
+  function cacheLogo(id, url, cb) {
     const img = new Image();
-    img.onload = () => { logoImg = img; if (cb) cb(); };
-    img.onerror = () => { logoImg = null; if (cb) cb(); };
+    img.onload = () => { logoImgs[id] = img; if (cb) cb(); };
+    img.onerror = () => { if (cb) cb(); };
     img.src = url;
   }
+  function loadAllLogos(cb) {
+    const list = state.assets.logos;
+    if (!list.length) { if (cb) cb(); return; }
+    let n = list.length;
+    list.forEach(l => cacheLogo(l.id, l.url, () => { if (--n === 0 && cb) cb(); }));
+  }
+  const getLogoImg = id => logoImgs[id] || null;
   function rerenderActive() {
     if ($('#view-bulk').classList.contains('is-active')) renderBulk();
     else renderDesign();
   }
-  // Downscale on import so the stored data URL stays small.
-  function setLogoFromFile(file) {
+  // Downscale on import so the stored data URL stays small, then select it.
+  function addLogoFromFile(file, st, afterFill) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -103,8 +131,11 @@
         cv.width = cw; cv.height = ch;
         cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
         const url = cv.toDataURL('image/png');
-        state.assets.logo = url; save();
-        loadLogoImg(url, rerenderActive);
+        const id = uid();
+        state.assets.logos.push({ id, url });
+        st.logo = true; st.logoId = id;
+        save();
+        cacheLogo(id, url, () => { if (afterFill) afterFill(); rerenderActive(); });
         toast('Logo added');
       };
       img.onerror = () => toast('Could not read that image');
@@ -112,24 +143,44 @@
     };
     reader.readAsDataURL(file);
   }
+  function removeLogoAsset(id) {
+    state.assets.logos = state.assets.logos.filter(l => l.id !== id);
+    delete logoImgs[id];
+    [state.design, state.bulk].forEach(st => { if (st.logoId === id) st.logoId = null; });
+    state.saved.forEach(s => { if (s.spec && s.spec.logoId === id) s.spec.logoId = null; });
+    save();
+  }
+  // Renders the thumbnail picker + add button for a tab's logo section.
+  function renderLogoGallery(prefix, st) {
+    const wrap = $(`#${prefix}_logoGallery`);
+    if (!wrap) return;
+    wrap.innerHTML = state.assets.logos.map(l =>
+      `<button type="button" class="logo-thumb ${l.id === st.logoId ? 'is-active' : ''}" data-logo="${l.id}">
+         <img src="${l.url}" alt="logo" /><span class="logo-del" data-del="${l.id}">✕</span>
+       </button>`).join('') +
+      `<button type="button" class="logo-thumb add" data-add="1" aria-label="Add logo">＋</button>`;
+    $$(`#${prefix}_logoWrap [data-pos]`).forEach(b =>
+      b.classList.toggle('is-active', b.dataset.pos === st.logoPos));
+  }
 
   /* ---------------- Rendering engine ---------------- */
   const scratch = document.createElement('canvas').getContext('2d');
-  const fontStr = (px, bold) => `${bold ? '700' : '500'} ${px}px -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+  const fontStr = (px, bold, font) =>
+    `${bold ? '700' : '500'} ${px}px ${(FONTS[font] || FONTS.system).css}`;
 
   // Cap auto text height so one long line doesn't create a metre-long label.
   const MAX_FONT_PX = mm(26);
 
-  function fitFont(lines, boxW, boxH, bold) {
+  function fitFont(lines, boxW, boxH, bold, font) {
     let lo = 6, hi = Math.min(Math.floor(boxH), MAX_FONT_PX), best = lo;
     while (lo <= hi) {
       const f = (lo + hi) >> 1;
       const f2 = Math.round(f * 0.58);
-      scratch.font = fontStr(f, bold);
+      scratch.font = fontStr(f, bold, font);
       let widest = scratch.measureText(lines[0]).width;
       let totalH = f * 1.16;
       if (lines[1]) {
-        scratch.font = fontStr(f2, bold);
+        scratch.font = fontStr(f2, bold, font);
         widest = Math.max(widest, scratch.measureText(lines[1]).width);
         totalH += f2 * 1.3;
       }
@@ -179,8 +230,10 @@
     const hasText = !!(spec.line1 || spec.line2);
     const lines = [spec.line1 || '', spec.line2 || ''].filter(Boolean);
     const hPx = mm(heightMm), mPx = mm(marginMm), innerH = hPx - 2 * mPx, gap = mm(2.5);
-    const useLogo = !!(spec.logo && logoImg && logoImg.naturalWidth);
-    const logoW = useLogo ? Math.min(logoImg.naturalWidth / logoImg.naturalHeight * innerH, innerH * 1.5) : 0;
+    const logoImage = spec.logo ? getLogoImg(spec.logoId) : null;
+    const useLogo = !!(logoImage && logoImage.naturalWidth);
+    const logoW = useLogo ? Math.min(logoImage.naturalWidth / logoImage.naturalHeight * innerH, innerH * 1.5) : 0;
+    const logoRight = useLogo && spec.logoPos === 'right';
 
     let lengthMm;
     if (forcedLen != null) {
@@ -190,9 +243,9 @@
       let textW = 0;
       if (hasText) {
         const probe = Math.min(MAX_FONT_PX, Math.round(innerH * (lines[1] ? 0.5 : 0.66)));
-        scratch.font = fontStr(probe, spec.bold);
+        scratch.font = fontStr(probe, spec.bold, spec.font);
         textW = scratch.measureText(lines[0]).width;
-        if (lines[1]) { scratch.font = fontStr(Math.round(probe * 0.58), spec.bold);
+        if (lines[1]) { scratch.font = fontStr(Math.round(probe * 0.58), spec.bold, spec.font);
           textW = Math.max(textW, scratch.measureText(lines[1]).width); }
       }
       let lp = (2 * mPx + (logoW ? logoW + gap : 0) + textW + (qrW ? qrW + gap : 0) + mm(4)) / PX;
@@ -207,9 +260,13 @@
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, wPx, hPx);
 
     let x0 = mPx, y0 = mPx, x1 = wPx - mPx, y1 = hPx - mPx;
-    if (useLogo) {
-      drawLogo(ctx, logoImg, x0, y0, logoW, innerH);
+    if (useLogo && !logoRight) {
+      drawLogo(ctx, logoImage, x0, y0, logoW, innerH);
       x0 += logoW + gap;
+    }
+    if (logoRight) {
+      drawLogo(ctx, logoImage, x1 - logoW, y0, logoW, innerH);
+      x1 -= logoW + gap;
     }
     if (spec.qr) {
       const qsize = Math.min(innerH, (x1 - x0) * 0.85);
@@ -223,7 +280,7 @@
     }
     if (hasText && x1 - x0 > 4) {
       const boxW = x1 - x0, boxH = y1 - y0;
-      const f = fitFont(lines, boxW, boxH, spec.bold);
+      const f = fitFont(lines, boxW, boxH, spec.bold, spec.font);
       const f2 = Math.round(f * 0.58);
       const h1 = f * 1.16, h2 = lines[1] ? f2 * 1.3 : 0;
       let ty = y0 + (boxH - (h1 + h2)) / 2;
@@ -231,9 +288,9 @@
       ctx.textAlign = spec.align === 'center' ? 'center' : 'left';
       const tx = spec.align === 'center' ? x0 + boxW / 2 : x0;
       ctx.fillStyle = '#000';
-      ctx.font = fontStr(f, spec.bold);
+      ctx.font = fontStr(f, spec.bold, spec.font);
       ctx.fillText(lines[0], tx, ty);
-      if (lines[1]) { ctx.font = fontStr(f2, spec.bold); ctx.fillText(lines[1], tx, ty + h1); }
+      if (lines[1]) { ctx.font = fontStr(f2, spec.bold, spec.font); ctx.fillText(lines[1], tx, ty + h1); }
     }
     return { canvas, wmm: lengthMm, hmm: heightMm };
   }
@@ -316,6 +373,7 @@
     d.dieIdx = +$('#d_die').value;
     d.lengthMm = uToMm(+$('#d_length').value || mmToU(100));
     d.logo = $('#d_logo').checked;
+    d.font = $('#d_font').value;
     d.line1 = $('#d_line1').value;
     d.line2 = $('#d_line2').value;
     d.bold = $('#d_bold').checked;
@@ -332,6 +390,7 @@
     $('#d_qrWrap').hidden = !d.qr;
     $('#d_bcWrap').hidden = !d.barcode;
     $('#d_logoWrap').hidden = !d.logo;
+    if (d.logo) renderLogoGallery('d', d);
     $('#d_marginVal').textContent = d.marginMm;
     $('#d_length').disabled = d.lengthMode !== 'fixed' || d.type !== 'continuous';
     syncFormatUI('d', d);
@@ -361,6 +420,7 @@
     fillFormatSelects('d', d);
     applyUnitToLengthInput('#d_length', d.lengthMm);
     $('#d_logo').checked = d.logo;
+    $('#d_font').value = d.font;
     $('#d_line1').value = d.line1; $('#d_line2').value = d.line2;
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
     $('#d_qr').checked = d.qr; $('#d_qrData').value = d.qrData;
@@ -398,16 +458,21 @@
       state.design.orient = b.dataset.orient; renderDesign();
     }));
 
-    // Logo: tapping "Add logo" with none stored opens the picker.
+    // Logo gallery: enabling with no logos opens the picker.
     $('#d_logo').addEventListener('change', () => {
-      if ($('#d_logo').checked && !state.assets.logo) $('#d_logoFile').click();
+      if ($('#d_logo').checked && !state.assets.logos.length) $('#d_logoFile').click();
     });
-    $('#d_logoFile').addEventListener('change', e => { setLogoFromFile(e.target.files[0]); e.target.value = ''; });
-    $('#d_logoChange').addEventListener('click', () => $('#d_logoFile').click());
-    $('#d_logoClear').addEventListener('click', () => {
-      state.assets.logo = null; save(); loadLogoImg(null);
-      $('#d_logo').checked = false; renderDesign();
+    $('#d_logoFile').addEventListener('change', e => { addLogoFromFile(e.target.files[0], state.design); e.target.value = ''; });
+    $('#d_logoGallery').addEventListener('click', e => {
+      const del = e.target.closest('[data-del]');
+      if (del) { removeLogoAsset(del.dataset.del); renderDesign(); return; }
+      if (e.target.closest('[data-add]')) { $('#d_logoFile').click(); return; }
+      const t = e.target.closest('[data-logo]');
+      if (t) { state.design.logoId = t.dataset.logo; state.design.logo = true; renderDesign(); }
     });
+    $$('#d_logoWrap [data-pos]').forEach(b => b.addEventListener('click', () => {
+      state.design.logoPos = b.dataset.pos; renderDesign();
+    }));
 
     $('#d_png').addEventListener('click', () => exportPNG(currentDesignLabel, labelName(state.design.line1) + '.png'));
     $('#d_pdf').addEventListener('click', () => exportPDF([currentDesignLabel], labelName(state.design.line1) + '.pdf'));
@@ -422,8 +487,9 @@
       const spec = {
         type: b.type, widthMm: b.widthMm, dieIdx: b.dieIdx, orient: b.orient,
         lengthMode: b.lengthMode, lengthMm: b.lengthMm,
-        line1: f0, line2: f1, bold: true, align: 'left',
-        qr: false, qrData: '', barcode: false, bcData: '', logo: b.logo, marginMm: 2,
+        line1: f0, line2: f1, bold: true, align: 'left', font: b.font,
+        qr: false, qrData: '', barcode: false, bcData: '',
+        logo: b.logo, logoId: b.logoId, logoPos: b.logoPos, marginMm: 2,
       };
       if (b.layout === 'text-qr') { spec.qr = true; spec.qrData = code; }
       else if (b.layout === 'text-barcode') { spec.barcode = true; spec.bcData = code; }
@@ -436,10 +502,12 @@
     b.widthMm = +$('#b_width').value;
     b.dieIdx = +$('#b_die').value;
     b.layout = $('#b_layout').value;
+    b.font = $('#b_font').value;
     b.lengthMm = uToMm(+$('#b_length').value || mmToU(100));
     b.logo = $('#b_logo').checked;
     b.items = $('#b_items').value;
     $('#b_logoWrap').hidden = !b.logo;
+    if (b.logo) renderLogoGallery('b', b);
     $('#b_length').disabled = b.lengthMode !== 'fixed' || b.type !== 'continuous';
     syncFormatUI('b', b);
     save();
@@ -470,6 +538,7 @@
     const b = state.bulk;
     fillFormatSelects('b', b);
     $('#b_layout').value = b.layout;
+    $('#b_font').value = b.font;
     applyUnitToLengthInput('#b_length', b.lengthMm);
     $('#b_logo').checked = b.logo;
     $('#b_items').value = b.items;
@@ -542,14 +611,19 @@
     $('#b_csvBtn').addEventListener('click', () => $('#b_csv').click());
 
     $('#b_logo').addEventListener('change', () => {
-      if ($('#b_logo').checked && !state.assets.logo) $('#b_logoFile').click();
+      if ($('#b_logo').checked && !state.assets.logos.length) $('#b_logoFile').click();
     });
-    $('#b_logoFile').addEventListener('change', e => { setLogoFromFile(e.target.files[0]); e.target.value = ''; });
-    $('#b_logoChange').addEventListener('click', () => $('#b_logoFile').click());
-    $('#b_logoClear').addEventListener('click', () => {
-      state.assets.logo = null; save(); loadLogoImg(null);
-      $('#b_logo').checked = false; renderBulk();
+    $('#b_logoFile').addEventListener('change', e => { addLogoFromFile(e.target.files[0], state.bulk); e.target.value = ''; });
+    $('#b_logoGallery').addEventListener('click', e => {
+      const del = e.target.closest('[data-del]');
+      if (del) { removeLogoAsset(del.dataset.del); renderBulk(); return; }
+      if (e.target.closest('[data-add]')) { $('#b_logoFile').click(); return; }
+      const t = e.target.closest('[data-logo]');
+      if (t) { state.bulk.logoId = t.dataset.logo; state.bulk.logo = true; renderBulk(); }
     });
+    $$('#b_logoWrap [data-pos]').forEach(b => b.addEventListener('click', () => {
+      state.bulk.logoPos = b.dataset.pos; renderBulk();
+    }));
 
     $('#b_pdf').addEventListener('click', async () => {
       const labels = renderBulk();
@@ -564,12 +638,70 @@
     });
   }
 
+  /* ---------------- Saved designs ---------------- */
+  function saveCurrentDesign() {
+    readDesign();
+    const def = state.design.line1 || 'My label';
+    const name = (prompt('Name this design:', def) || '').trim();
+    if (!name) return;
+    state.saved.unshift({ id: uid(), name, spec: JSON.parse(JSON.stringify(state.design)), createdAt: Date.now() });
+    save();
+    toast('Design saved');
+  }
+  function loadSaved(id) {
+    const s = state.saved.find(x => x.id === id);
+    if (!s) return;
+    state.design = { ...defaultDesign(), ...s.spec };
+    fillDesignInputs();
+    renderDesign();
+    switchView('design');
+    toast(`Loaded “${s.name}”`);
+  }
+  function renderSaved() {
+    const list = $('#savedList');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!state.saved.length) {
+      list.innerHTML = '<p class="empty">No saved designs yet. Build a label on the Design tab, then tap “Save current design”.</p>';
+      return;
+    }
+    state.saved.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'saved-card';
+      const thumb = document.createElement('div');
+      thumb.className = 'saved-thumb';
+      const label = renderLabel(s.spec);
+      const cv = document.createElement('canvas');
+      cv.width = label.canvas.width; cv.height = label.canvas.height;
+      cv.getContext('2d').drawImage(label.canvas, 0, 0);
+      thumb.appendChild(cv);
+      const name = document.createElement('div');
+      name.className = 'saved-name';
+      name.textContent = s.name;
+      const acts = document.createElement('div');
+      acts.className = 'saved-acts';
+      acts.innerHTML = `<button class="btn-ghost sm" data-load="${s.id}">Load</button><button class="btn-ghost sm" data-del="${s.id}">Delete</button>`;
+      card.append(thumb, name, acts);
+      list.appendChild(card);
+    });
+  }
+  function initSaved() {
+    $('#saveDesignBtn').addEventListener('click', () => { saveCurrentDesign(); renderSaved(); });
+    $('#savedList').addEventListener('click', e => {
+      const load = e.target.closest('[data-load]');
+      if (load) return loadSaved(load.dataset.load);
+      const del = e.target.closest('[data-del]');
+      if (del) { state.saved = state.saved.filter(x => x.id !== del.dataset.del); save(); renderSaved(); }
+    });
+  }
+
   /* ---------------- Tabs ---------------- */
   function switchView(name) {
     $$('.view').forEach(v => v.classList.toggle('is-active', v.id === 'view-' + name));
     $$('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.view === name));
-    $('.actions').style.display = name === 'guide' ? 'none' : 'flex';
+    $('.actions').style.display = (name === 'guide' || name === 'saved') ? 'none' : 'flex';
     if (name === 'bulk') renderBulk();
+    if (name === 'saved') renderSaved();
   }
 
   function initUnits() {
@@ -588,7 +720,8 @@
     initDesign();
     initBulk();
     initUnits();
-    if (state.assets.logo) loadLogoImg(state.assets.logo, () => rerenderActive());
+    initSaved();
+    loadAllLogos(() => rerenderActive());
     $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
     renderDesign();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
