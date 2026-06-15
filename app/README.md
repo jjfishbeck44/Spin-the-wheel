@@ -22,8 +22,13 @@ step, no backend — your designs stay on your device.
   `TOTE-001…TOTE-050`), choose a layout (Text, Text + QR, Text + Barcode,
   QR only), pick any cartridge/die-cut + orientation, and produce the whole
   batch at once. Use `Line 1 | Line 2 | code` per row for full control.
-- **Logo / image** — add a logo (placed at the left of the label, shared
-  across Design and Bulk); auto-downscaled and rendered in monochrome.
+- **Fonts** — choose per-label type style: System, Rounded, Condensed, Serif,
+  or Mono (system fonts, no downloads).
+- **Logos** — keep a small gallery of logos; pick one per label and place it
+  **left or right**. Auto-downscaled, rendered in monochrome, shared across
+  Design and Bulk.
+- **Saved designs** — save the current label by name and reload it any time
+  from the **Saved** tab (stored on-device).
 - **CSV import** — import a list in the Bulk tab; columns map to
   Line 1 / Line 2 / code and a header row is skipped automatically.
 - **mm / inch toggle** — switch measurement units in the header (88 mm ≈

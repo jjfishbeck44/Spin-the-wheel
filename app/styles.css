@@ -56,6 +56,43 @@ body {
 .units-toggle button.is-active { background: #fff; color: var(--red); opacity: 1; }
 
 .logo-actions { display: flex; gap: 8px; }
+
+/* Logo gallery */
+.logo-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.logo-thumb {
+  position: relative; width: 54px; height: 54px; flex: 0 0 auto;
+  border: 2px solid var(--line); border-radius: 11px; background: #fff;
+  cursor: pointer; padding: 4px; display: grid; place-items: center;
+}
+.logo-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.logo-thumb.is-active { border-color: var(--red); }
+.logo-thumb.add { color: var(--text-dim); font-size: 24px; background: var(--surface-2); border-style: dashed; }
+.logo-del {
+  position: absolute; top: -7px; right: -7px; width: 20px; height: 20px;
+  background: var(--text); color: var(--bg); border-radius: 50%;
+  font-size: 12px; display: grid; place-items: center; line-height: 1;
+}
+
+.save-row { margin-top: 2px; }
+.save-row .btn-ghost { width: 100%; }
+
+/* Saved designs */
+.saved-wrap { padding: 18px 16px; }
+.saved-title { margin: 4px 0 4px; font-size: 21px; }
+.saved-sub { margin: 0 0 16px; color: var(--text-dim); font-size: 14px; }
+.saved-list { display: flex; flex-direction: column; gap: 12px; }
+.saved-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px; box-shadow: var(--shadow);
+}
+.saved-thumb {
+  background: #fff; border-radius: 8px; padding: 8px; overflow-x: auto; text-align: center;
+}
+.saved-thumb canvas { max-width: 100%; height: auto; max-height: 90px; }
+.saved-name { font-weight: 700; font-size: 15px; margin: 10px 2px 8px; }
+.saved-acts { display: flex; gap: 8px; }
+.saved-acts .btn-ghost { flex: 1; }
+.saved-list .empty { color: var(--text-dim); font-size: 14px; line-height: 1.5; text-align: center; padding: 24px 12px; }
 .csv-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .csv-row .hint { margin: 0; flex: 1; min-width: 140px; }
 
