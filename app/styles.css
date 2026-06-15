@@ -43,10 +43,21 @@ body {
 }
 .brand-text h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.2px; }
 .brand-text p { margin: 2px 0 0; font-size: 13px; opacity: .85; }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .cartridge-badge {
   background: rgba(255,255,255,.18); padding: 6px 11px; border-radius: 999px;
   font-size: 12px; font-weight: 600; white-space: nowrap;
 }
+.units-toggle { display: flex; background: rgba(255,255,255,.16); border-radius: 999px; padding: 2px; }
+.units-toggle button {
+  border: none; background: transparent; color: #fff; opacity: .7;
+  font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+}
+.units-toggle button.is-active { background: #fff; color: var(--red); opacity: 1; }
+
+.logo-actions { display: flex; gap: 8px; }
+.csv-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.csv-row .hint { margin: 0; flex: 1; min-width: 140px; }
 
 /* Views */
 .view {

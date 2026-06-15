@@ -41,13 +41,16 @@
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01',
     bold: true, align: 'left',
-    qr: true, qrData: 'TOTE-01', barcode: false, bcData: '', marginMm: 2,
+    qr: true, qrData: 'TOTE-01', barcode: false, bcData: '', logo: false, marginMm: 2,
   });
   const defaultBulk = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
-    lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', items: '',
+    lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', logo: false, items: '',
   });
-  const defaults = () => ({ design: defaultDesign(), bulk: defaultBulk() });
+  const defaults = () => ({
+    design: defaultDesign(), bulk: defaultBulk(),
+    settings: { units: 'mm' }, assets: { logo: null },
+  });
 
   let state = load();
   function load() {
@@ -55,12 +58,60 @@
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) {
         const p = JSON.parse(raw);
-        return { design: { ...defaultDesign(), ...p.design }, bulk: { ...defaultBulk(), ...p.bulk } };
+        const d = defaults();
+        return {
+          design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
+          settings: { ...d.settings, ...p.settings }, assets: { ...d.assets, ...p.assets },
+        };
       }
     } catch (e) {}
     return defaults();
   }
   const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} };
+
+  /* ---------------- Units (display only; internal is always mm) ---------------- */
+  const unit = () => state.settings.units;
+  const uToMm = v => unit() === 'in' ? v * 25.4 : v;
+  const mmToU = v => unit() === 'in' ? v / 25.4 : v;
+  const fmtU = v => unit() === 'in' ? (v / 25.4).toFixed(2) : Math.round(v).toString();
+
+  /* ---------------- Logo asset ---------------- */
+  let logoImg = null;
+  function loadLogoImg(url, cb) {
+    if (!url) { logoImg = null; if (cb) cb(); return; }
+    const img = new Image();
+    img.onload = () => { logoImg = img; if (cb) cb(); };
+    img.onerror = () => { logoImg = null; if (cb) cb(); };
+    img.src = url;
+  }
+  function rerenderActive() {
+    if ($('#view-bulk').classList.contains('is-active')) renderBulk();
+    else renderDesign();
+  }
+  // Downscale on import so the stored data URL stays small.
+  function setLogoFromFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 800;
+        const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const cw = Math.max(1, Math.round(img.naturalWidth * s));
+        const ch = Math.max(1, Math.round(img.naturalHeight * s));
+        const cv = document.createElement('canvas');
+        cv.width = cw; cv.height = ch;
+        cv.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        const url = cv.toDataURL('image/png');
+        state.assets.logo = url; save();
+        loadLogoImg(url, rerenderActive);
+        toast('Logo added');
+      };
+      img.onerror = () => toast('Could not read that image');
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
 
   /* ---------------- Rendering engine ---------------- */
   const scratch = document.createElement('canvas').getContext('2d');
@@ -117,11 +168,19 @@
     } catch (e) { return false; }
   }
 
+  function drawLogo(ctx, img, x, y, boxW, boxH) {
+    const s = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
+    const w = img.naturalWidth * s, h = img.naturalHeight * s;
+    ctx.drawImage(img, x + (boxW - w) / 2, y + (boxH - h) / 2, w, h);
+  }
+
   // Build the label horizontally (text reads left-to-right).
   function composeHorizontal(spec, heightMm, forcedLen, marginMm) {
     const hasText = !!(spec.line1 || spec.line2);
     const lines = [spec.line1 || '', spec.line2 || ''].filter(Boolean);
     const hPx = mm(heightMm), mPx = mm(marginMm), innerH = hPx - 2 * mPx, gap = mm(2.5);
+    const useLogo = !!(spec.logo && logoImg && logoImg.naturalWidth);
+    const logoW = useLogo ? Math.min(logoImg.naturalWidth / logoImg.naturalHeight * innerH, innerH * 1.5) : 0;
 
     let lengthMm;
     if (forcedLen != null) {
@@ -136,9 +195,9 @@
         if (lines[1]) { scratch.font = fontStr(Math.round(probe * 0.58), spec.bold);
           textW = Math.max(textW, scratch.measureText(lines[1]).width); }
       }
-      let lp = (2 * mPx + textW + (qrW ? qrW + gap : 0) + mm(4)) / PX;
+      let lp = (2 * mPx + (logoW ? logoW + gap : 0) + textW + (qrW ? qrW + gap : 0) + mm(4)) / PX;
       if (spec.barcode) lp = Math.max(lp, 55);
-      lengthMm = clamp(lp, spec.qr ? heightMm : 22, 2700);
+      lengthMm = clamp(lp, (spec.qr || useLogo) ? heightMm : 22, 2700);
     }
 
     const wPx = mm(lengthMm);
@@ -148,6 +207,10 @@
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, wPx, hPx);
 
     let x0 = mPx, y0 = mPx, x1 = wPx - mPx, y1 = hPx - mPx;
+    if (useLogo) {
+      drawLogo(ctx, logoImg, x0, y0, logoW, innerH);
+      x0 += logoW + gap;
+    }
     if (spec.qr) {
       const qsize = Math.min(innerH, (x1 - x0) * 0.85);
       drawQR(ctx, spec.qrData || spec.line1 || ' ', x1 - qsize, y0 + (innerH - qsize) / 2, qsize);
@@ -251,7 +314,8 @@
     const d = state.design;
     d.widthMm = +$('#d_width').value;
     d.dieIdx = +$('#d_die').value;
-    d.lengthMm = +$('#d_length').value || 100;
+    d.lengthMm = uToMm(+$('#d_length').value || mmToU(100));
+    d.logo = $('#d_logo').checked;
     d.line1 = $('#d_line1').value;
     d.line2 = $('#d_line2').value;
     d.bold = $('#d_bold').checked;
@@ -267,6 +331,7 @@
     const d = readDesign();
     $('#d_qrWrap').hidden = !d.qr;
     $('#d_bcWrap').hidden = !d.barcode;
+    $('#d_logoWrap').hidden = !d.logo;
     $('#d_marginVal').textContent = d.marginMm;
     $('#d_length').disabled = d.lengthMode !== 'fixed' || d.type !== 'continuous';
     syncFormatUI('d', d);
@@ -279,13 +344,23 @@
     pc.width = label.canvas.width; pc.height = label.canvas.height;
     pc.getContext('2d').drawImage(label.canvas, 0, 0);
     $('#previewMeta').textContent =
-      `${label.wmm.toFixed(0)} × ${label.hmm} mm · ${label.canvas.width} × ${label.canvas.height} px @ ${DPI} dpi`;
+      `${fmtU(label.wmm)} × ${fmtU(label.hmm)} ${unit()} · ${label.canvas.width} × ${label.canvas.height} px @ ${DPI} dpi`;
     save();
+  }
+  // Update a length number input's range/step + its unit label for current unit.
+  function applyUnitToLengthInput(inputSel, mmVal) {
+    const inp = $(inputSel);
+    const wrap = inp.closest('.segmented');
+    if (wrap) wrap.querySelector('.unit').textContent = unit();
+    if (unit() === 'in') { inp.min = '0.4'; inp.max = '106'; inp.step = '0.1'; }
+    else { inp.min = '10'; inp.max = '2700'; inp.step = '1'; }
+    inp.value = fmtU(mmVal);
   }
   function fillDesignInputs() {
     const d = state.design;
     fillFormatSelects('d', d);
-    $('#d_length').value = d.lengthMm;
+    applyUnitToLengthInput('#d_length', d.lengthMm);
+    $('#d_logo').checked = d.logo;
     $('#d_line1').value = d.line1; $('#d_line2').value = d.line2;
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
     $('#d_qr').checked = d.qr; $('#d_qrData').value = d.qrData;
@@ -323,6 +398,17 @@
       state.design.orient = b.dataset.orient; renderDesign();
     }));
 
+    // Logo: tapping "Add logo" with none stored opens the picker.
+    $('#d_logo').addEventListener('change', () => {
+      if ($('#d_logo').checked && !state.assets.logo) $('#d_logoFile').click();
+    });
+    $('#d_logoFile').addEventListener('change', e => { setLogoFromFile(e.target.files[0]); e.target.value = ''; });
+    $('#d_logoChange').addEventListener('click', () => $('#d_logoFile').click());
+    $('#d_logoClear').addEventListener('click', () => {
+      state.assets.logo = null; save(); loadLogoImg(null);
+      $('#d_logo').checked = false; renderDesign();
+    });
+
     $('#d_png').addEventListener('click', () => exportPNG(currentDesignLabel, labelName(state.design.line1) + '.png'));
     $('#d_pdf').addEventListener('click', () => exportPDF([currentDesignLabel], labelName(state.design.line1) + '.pdf'));
     $('#d_print').addEventListener('click', () => printLabels([currentDesignLabel]));
@@ -337,7 +423,7 @@
         type: b.type, widthMm: b.widthMm, dieIdx: b.dieIdx, orient: b.orient,
         lengthMode: b.lengthMode, lengthMm: b.lengthMm,
         line1: f0, line2: f1, bold: true, align: 'left',
-        qr: false, qrData: '', barcode: false, bcData: '', marginMm: 2,
+        qr: false, qrData: '', barcode: false, bcData: '', logo: b.logo, marginMm: 2,
       };
       if (b.layout === 'text-qr') { spec.qr = true; spec.qrData = code; }
       else if (b.layout === 'text-barcode') { spec.barcode = true; spec.bcData = code; }
@@ -350,8 +436,10 @@
     b.widthMm = +$('#b_width').value;
     b.dieIdx = +$('#b_die').value;
     b.layout = $('#b_layout').value;
-    b.lengthMm = +$('#b_length').value || 100;
+    b.lengthMm = uToMm(+$('#b_length').value || mmToU(100));
+    b.logo = $('#b_logo').checked;
     b.items = $('#b_items').value;
+    $('#b_logoWrap').hidden = !b.logo;
     $('#b_length').disabled = b.lengthMode !== 'fixed' || b.type !== 'continuous';
     syncFormatUI('b', b);
     save();
@@ -382,9 +470,44 @@
     const b = state.bulk;
     fillFormatSelects('b', b);
     $('#b_layout').value = b.layout;
-    $('#b_length').value = b.lengthMm;
+    applyUnitToLengthInput('#b_length', b.lengthMm);
+    $('#b_logo').checked = b.logo;
     $('#b_items').value = b.items;
     $$('#view-bulk [data-len]').forEach(x => x.classList.toggle('is-active', x.dataset.len === b.lengthMode));
+  }
+
+  /* ---------------- CSV import ---------------- */
+  function parseCSV(text) {
+    const rows = []; let field = '', row = [], inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+        else field += c;
+      } else if (c === '"') inQ = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim() !== ''));
+  }
+  function importCSV(text) {
+    let rows = parseCSV(text);
+    if (!rows.length) { toast('No rows found in CSV'); return; }
+    const first = rows[0].join(' ').toLowerCase();
+    if (rows.length > 1 && /name|label|line|code|qr|text|item|title|desc|sku|part/.test(first))
+      rows = rows.slice(1);
+    const lines = rows.map(r => {
+      const parts = [(r[0] || '').trim(), (r[1] || '').trim(), (r[2] || '').trim()];
+      while (parts.length && parts[parts.length - 1] === '') parts.pop();
+      return parts.join(' | ');
+    }).filter(Boolean);
+    $('#b_items').value = lines.join('\n');
+    renderBulk();
+    toast(`Imported ${lines.length} row${lines.length > 1 ? 's' : ''}`);
   }
   function initBulk() {
     fillBulkInputs();
@@ -411,6 +534,23 @@
       ta.value = (ta.value.trim() ? ta.value.replace(/\s*$/, '') + '\n' : '') + rows.join('\n');
       renderBulk();
     });
+    $('#b_csv').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) { const r = new FileReader(); r.onload = () => importCSV(String(r.result)); r.readAsText(f); }
+      e.target.value = '';
+    });
+    $('#b_csvBtn').addEventListener('click', () => $('#b_csv').click());
+
+    $('#b_logo').addEventListener('change', () => {
+      if ($('#b_logo').checked && !state.assets.logo) $('#b_logoFile').click();
+    });
+    $('#b_logoFile').addEventListener('change', e => { setLogoFromFile(e.target.files[0]); e.target.value = ''; });
+    $('#b_logoChange').addEventListener('click', () => $('#b_logoFile').click());
+    $('#b_logoClear').addEventListener('click', () => {
+      state.assets.logo = null; save(); loadLogoImg(null);
+      $('#b_logo').checked = false; renderBulk();
+    });
+
     $('#b_pdf').addEventListener('click', async () => {
       const labels = renderBulk();
       if (!labels.length) return toast('Add some items first');
@@ -432,9 +572,23 @@
     if (name === 'bulk') renderBulk();
   }
 
+  function initUnits() {
+    const sync = () => $$('#unitsToggle [data-unit]').forEach(b =>
+      b.classList.toggle('is-active', b.dataset.unit === unit()));
+    sync();
+    $$('#unitsToggle [data-unit]').forEach(b => b.addEventListener('click', () => {
+      state.settings.units = b.dataset.unit; save(); sync();
+      applyUnitToLengthInput('#d_length', state.design.lengthMm);
+      applyUnitToLengthInput('#b_length', state.bulk.lengthMm);
+      rerenderActive();
+    }));
+  }
+
   function init() {
     initDesign();
     initBulk();
+    initUnits();
+    if (state.assets.logo) loadLogoImg(state.assets.logo, () => rerenderActive());
     $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
     renderDesign();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
