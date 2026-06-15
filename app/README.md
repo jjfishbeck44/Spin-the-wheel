@@ -22,6 +22,12 @@ step, no backend — your designs stay on your device.
   `TOTE-001…TOTE-050`), choose a layout (Text, Text + QR, Text + Barcode,
   QR only), pick any cartridge/die-cut + orientation, and produce the whole
   batch at once. Use `Line 1 | Line 2 | code` per row for full control.
+- **Logo / image** — add a logo (placed at the left of the label, shared
+  across Design and Bulk); auto-downscaled and rendered in monochrome.
+- **CSV import** — import a list in the Bulk tab; columns map to
+  Line 1 / Line 2 / code and a header row is skipped automatically.
+- **mm / inch toggle** — switch measurement units in the header (88 mm ≈
+  3.46 in); lengths and the preview readout follow the chosen unit.
 - **Export & print** — lossless **PDF** (one label per page, exact mm) or
   **PNG**, plus a **Print** sheet (AirPrint / Save to Files as PDF).
 - **Offline** via service worker; **dark mode**, safe-area insets, home-screen

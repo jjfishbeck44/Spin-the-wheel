@@ -35,7 +35,13 @@
           <p>for Leitz&nbsp;Icon</p>
         </div>
       </div>
-      <div class="cartridge-badge" id="cartridgeBadge">88&nbsp;mm · 300&nbsp;dpi</div>
+      <div class="header-right">
+        <div class="units-toggle" id="unitsToggle" role="group" aria-label="Units">
+          <button type="button" data-unit="mm" class="is-active">mm</button>
+          <button type="button" data-unit="in">in</button>
+        </div>
+        <div class="cartridge-badge" id="cartridgeBadge">88&nbsp;mm · 300&nbsp;dpi</div>
+      </div>
     </header>
 
     <!-- ============ DESIGN ============ -->
@@ -126,6 +132,18 @@
           apps. Stores a code only (no link). For phone scanning, prefer QR.</p>
         </div>
 
+        <label class="chip-check block"><input type="checkbox" id="d_logo" /> Add logo / image</label>
+        <div class="field sub" id="d_logoWrap" hidden>
+          <input type="file" id="d_logoFile" accept="image/*" hidden />
+          <div class="logo-actions">
+            <button type="button" class="btn-ghost sm" id="d_logoChange">Choose image…</button>
+            <button type="button" class="btn-ghost sm" id="d_logoClear">Remove</button>
+          </div>
+          <p class="hint">🖼️ Placed at the left of the label. Use a high-contrast
+          (ideally black) PNG/JPG — labels print in monochrome. Shared with the
+          Bulk tab.</p>
+        </div>
+
         <details class="advanced">
           <summary>Advanced</summary>
           <label class="field">
@@ -202,10 +220,26 @@
           </div>
         </div>
 
+        <div class="csv-row">
+          <input type="file" id="b_csv" accept=".csv,text/csv" hidden />
+          <button type="button" class="btn-ghost sm" id="b_csvBtn">⤓ Import CSV</button>
+          <span class="hint">Columns → Line 1, Line 2, code. A header row is skipped.</span>
+        </div>
+
         <label class="field">
           <span>Items — one per line. Use <code>|</code> for Line 1 | Line 2 | code</span>
           <textarea id="b_items" rows="6" placeholder="TOTE-014 | Garage shelf B&#10;TOTE-015 | Winter gear&#10;DRILL-02 | Cordless · 18V"></textarea>
         </label>
+
+        <label class="chip-check block"><input type="checkbox" id="b_logo" /> Include logo on every label</label>
+        <div class="field sub" id="b_logoWrap" hidden>
+          <input type="file" id="b_logoFile" accept="image/*" hidden />
+          <div class="logo-actions">
+            <button type="button" class="btn-ghost sm" id="b_logoChange">Choose image…</button>
+            <button type="button" class="btn-ghost sm" id="b_logoClear">Remove</button>
+          </div>
+          <p class="hint">🖼️ Shared with the Design tab.</p>
+        </div>
 
         <div class="bulk-summary" id="bulkSummary">No items yet</div>
         <div class="bulk-thumbs" id="bulkThumbs"></div>
