@@ -180,6 +180,10 @@
 
     <!-- ============ BULK ============ -->
     <main id="view-bulk" class="view">
+      <div class="preset-bar">
+        <span class="preset-label">Batch presets</span>
+        <div class="preset-rail" id="presetRail"></div>
+      </div>
       <section class="controls">
         <fieldset class="field seg">
           <span>Label type</span>
@@ -285,6 +289,27 @@
       </div>
     </main>
 
+    <!-- ============ SCAN ============ -->
+    <main id="view-scan" class="view">
+      <div class="scan-wrap">
+        <h2 class="saved-title">Scan test</h2>
+        <p class="saved-sub">Check that a printed label scans cleanly. Use the
+        camera, or test an exported PNG with “Scan a photo”.</p>
+        <div class="scan-stage">
+          <video id="scanVideo" playsinline muted></video>
+          <div class="scan-frame" aria-hidden="true"></div>
+        </div>
+        <p class="scan-hint" id="scanHint">Tap “Start camera”, then point at a QR code.</p>
+        <div class="scan-controls">
+          <button class="btn-primary" id="scanStart">Start camera</button>
+          <button class="btn-ghost" id="scanStop" hidden>Stop</button>
+          <input type="file" id="scanFile" accept="image/*" hidden />
+          <button class="btn-ghost" id="scanPhotoBtn">Scan a photo</button>
+        </div>
+        <div class="scan-result" id="scanResult" hidden></div>
+      </div>
+    </main>
+
     <!-- ============ SAVED ============ -->
     <main id="view-saved" class="view">
       <div class="saved-wrap">
@@ -352,6 +377,7 @@
     <nav class="tab-bar" role="tablist">
       <button class="tab is-active" data-view="design" role="tab"><span class="tab-ico">✎</span><span>Design</span></button>
       <button class="tab" data-view="bulk" role="tab"><span class="tab-ico">▤</span><span>Bulk</span></button>
+      <button class="tab" data-view="scan" role="tab"><span class="tab-ico">⛶</span><span>Scan</span></button>
       <button class="tab" data-view="saved" role="tab"><span class="tab-ico">★</span><span>Saved</span></button>
       <button class="tab" data-view="guide" role="tab"><span class="tab-ico">?</span><span>Guide</span></button>
     </nav>
@@ -361,6 +387,7 @@
 
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsbarcode-code128.min.js"></script>
+  <script src="vendor/jsqr.js"></script>
   <script src="pdf.js"></script>
   <script src="app.js"></script>
 </body>

@@ -57,6 +57,46 @@ body {
 
 .logo-actions { display: flex; gap: 8px; }
 
+/* Batch presets */
+.preset-bar { padding: 12px 16px 0; }
+.preset-label { font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.preset-rail { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 2px; scrollbar-width: none; }
+.preset-rail::-webkit-scrollbar { display: none; }
+.preset-chip {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.preset-chip.add { color: var(--text-dim); border-style: dashed; }
+.preset-del {
+  border: none; background: var(--surface-2); color: var(--text-dim);
+  width: 18px; height: 18px; border-radius: 50%; font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+}
+
+/* Scan test */
+.scan-wrap { padding: 18px 16px; }
+.scan-stage {
+  position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000;
+  border-radius: 14px; overflow: hidden; box-shadow: var(--shadow);
+}
+.scan-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-frame {
+  position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+  width: 62%; aspect-ratio: 1; border: 3px solid rgba(255,255,255,.85); border-radius: 16px;
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,.28);
+}
+.scan-hint { text-align: center; color: var(--text-dim); font-size: 14px; margin: 12px 0; }
+.scan-controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.scan-controls .btn-primary, .scan-controls .btn-ghost { flex: 1; min-width: 130px; }
+.scan-result {
+  margin-top: 16px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 16px; box-shadow: var(--shadow); text-align: center;
+}
+.scan-fmt { color: #1f9d57; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
+.scan-val { font-size: 17px; font-weight: 600; margin: 8px 0 14px; word-break: break-all; }
+.scan-acts { display: flex; gap: 10px; justify-content: center; }
+.scan-acts .btn-primary, .scan-acts .btn-ghost { flex: 1; text-align: center; text-decoration: none; }
+
 /* Logo gallery */
 .logo-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .logo-thumb {

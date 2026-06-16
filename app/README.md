@@ -29,6 +29,12 @@ step, no backend — your designs stay on your device.
   Design and Bulk.
 - **Saved designs** — save the current label by name and reload it any time
   from the **Saved** tab (stored on-device).
+- **Batch presets** — save a Bulk tab format setup (cartridge, layout, font,
+  orientation, logo…) as a named preset and re-apply it in one tap.
+- **Scan test** — verify a printed label scans cleanly: scan with the camera
+  or test an exported PNG, and tap through to a URL it encodes. Uses the native
+  `BarcodeDetector` where available, falling back to a bundled offline QR
+  decoder.
 - **CSV import** — import a list in the Bulk tab; columns map to
   Line 1 / Line 2 / code and a header row is skipped automatically.
 - **mm / inch toggle** — switch measurement units in the header (88 mm ≈
@@ -78,6 +84,7 @@ python3 -m http.server 8000   # open http://localhost:8000
 | `pdf.js` | Dependency-free PDF writer (lossless grayscale, 1 label/page) |
 | `vendor/qrcode-generator.js` | QR generation — MIT, Kazuhiko Arase |
 | `vendor/jsbarcode-code128.min.js` | Code 128 barcodes — MIT, JsBarcode |
+| `vendor/jsqr.js` | Offline QR decoding for the scan test — Apache-2.0, jsQR |
 | `manifest.webmanifest` | PWA metadata |
 | `sw.js` | Service worker (offline cache) |
 | `icons/` | App icons (generated, full-bleed for iOS masking) |

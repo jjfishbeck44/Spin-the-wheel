@@ -13,6 +13,8 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const escapeHtml = s => String(s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // Continuous cartridge widths (mm). 88 = the 3.5" totes/tools cartridge.
   const WIDTHS = [88, 61, 57, 50, 39, 32, 25, 19, 12];
@@ -61,7 +63,7 @@
   });
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
-    settings: { units: 'mm' }, assets: { logos: [] }, saved: [],
+    settings: { units: 'mm' }, assets: { logos: [] }, saved: [], presets: [],
   });
 
   let state = load();
@@ -75,7 +77,7 @@
           design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
           settings: { ...d.settings, ...p.settings },
           assets: { logos: (p.assets && p.assets.logos) || [] },
-          saved: p.saved || [],
+          saved: p.saved || [], presets: p.presets || [],
         };
         // Migrate the old single-logo asset to the new gallery.
         if (p.assets && p.assets.logo && !s.assets.logos.length) {
@@ -580,6 +582,14 @@
   }
   function initBulk() {
     fillBulkInputs();
+    renderPresetRail();
+    $('#presetRail').addEventListener('click', e => {
+      const del = e.target.closest('[data-delpreset]');
+      if (del) { state.presets = state.presets.filter(x => x.id !== del.dataset.delpreset); save(); renderPresetRail(); return; }
+      if (e.target.closest('#savePresetBtn')) { saveBulkPreset(); return; }
+      const chip = e.target.closest('[data-preset]');
+      if (chip) applyPreset(chip.dataset.preset);
+    });
     ['#b_width', '#b_die', '#b_layout', '#b_length', '#b_items'].forEach(sel =>
       $(sel).addEventListener('input', renderBulk));
     $$('#view-bulk [data-len]').forEach(x => x.addEventListener('click', () => {
@@ -636,6 +646,41 @@
       if (!labels.length) return toast('Add some items first');
       printLabels(labels);
     });
+  }
+
+  /* ---------------- Batch print presets ---------------- */
+  // A preset captures the Bulk tab's format config (not the item list).
+  const PRESET_KEYS = ['type', 'widthMm', 'dieIdx', 'orient', 'font', 'layout',
+    'lengthMode', 'lengthMm', 'logo', 'logoId', 'logoPos'];
+  function bulkConfig() {
+    const o = {}; PRESET_KEYS.forEach(k => (o[k] = state.bulk[k])); return o;
+  }
+  function suggestPresetName() {
+    const b = state.bulk;
+    const fmt = b.type === 'diecut' ? DIECUTS[b.dieIdx].name.split(' — ')[0] : `${b.widthMm} mm`;
+    return `${fmt} · ${b.layout}`;
+  }
+  function saveBulkPreset() {
+    renderBulk();
+    const name = (prompt('Name this batch preset:', suggestPresetName()) || '').trim();
+    if (!name) return;
+    state.presets.unshift({ id: uid(), name, config: bulkConfig() });
+    save(); renderPresetRail(); toast('Preset saved');
+  }
+  function applyPreset(id) {
+    const p = state.presets.find(x => x.id === id);
+    if (!p) return;
+    Object.assign(state.bulk, p.config);
+    fillBulkInputs(); renderBulk(); renderPresetRail();
+    toast(`Preset “${p.name}”`);
+  }
+  function renderPresetRail() {
+    const rail = $('#presetRail');
+    if (!rail) return;
+    rail.innerHTML = state.presets.map(p =>
+      `<span class="preset-chip" data-preset="${p.id}">${escapeHtml(p.name)}` +
+      `<button type="button" class="preset-del" data-delpreset="${p.id}" aria-label="Delete preset">✕</button></span>`).join('') +
+      `<button type="button" class="preset-chip add" id="savePresetBtn">＋ Save preset</button>`;
   }
 
   /* ---------------- Saved designs ---------------- */
@@ -699,7 +744,8 @@
   function switchView(name) {
     $$('.view').forEach(v => v.classList.toggle('is-active', v.id === 'view-' + name));
     $$('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.view === name));
-    $('.actions').style.display = (name === 'guide' || name === 'saved') ? 'none' : 'flex';
+    $('.actions').style.display = (name === 'design' || name === 'bulk') ? 'flex' : 'none';
+    if (name !== 'scan') stopScan();
     if (name === 'bulk') renderBulk();
     if (name === 'saved') renderSaved();
   }
@@ -716,11 +762,102 @@
     }));
   }
 
+  /* ---------------- Scan test ---------------- */
+  let scanStream = null, scanRAF = null, scanDetector = null;
+  const scanCanvas = document.createElement('canvas');
+  async function decodeCanvas(cv) {
+    if (window.BarcodeDetector) {
+      try {
+        scanDetector = scanDetector || new BarcodeDetector();
+        const codes = await scanDetector.detect(cv);
+        if (codes && codes.length) return { value: codes[0].rawValue, format: codes[0].format || 'code' };
+      } catch (e) { /* fall back to jsQR */ }
+    }
+    const ctx = cv.getContext('2d');
+    const img = ctx.getImageData(0, 0, cv.width, cv.height);
+    const r = window.jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' });
+    return r ? { value: r.data, format: 'qr code' } : null;
+  }
+  function showScanResult(res) {
+    stopScan();
+    if (navigator.vibrate) navigator.vibrate(60);
+    const box = $('#scanResult');
+    const isUrl = /^https?:\/\//i.test(res.value);
+    box.hidden = false;
+    box.innerHTML = `<div class="scan-fmt">✓ ${escapeHtml(String(res.format).replace(/_/g, ' '))}</div>
+      <div class="scan-val"></div>
+      <div class="scan-acts">
+        ${isUrl ? '<a class="btn-primary" id="scanOpen" target="_blank" rel="noopener">Open link</a>' : ''}
+        <button class="btn-ghost" id="scanAgain">Scan again</button>
+      </div>`;
+    box.querySelector('.scan-val').textContent = res.value;
+    if (isUrl) $('#scanOpen').href = res.value;
+    $('#scanAgain').addEventListener('click', () => { box.hidden = true; startScan(); });
+  }
+  async function startScan() {
+    const video = $('#scanVideo');
+    $('#scanResult').hidden = true;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('#scanHint').textContent = 'Camera not available here — use “Scan a photo” instead.';
+      return;
+    }
+    try {
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = scanStream;
+      await video.play();
+      $('#scanStart').hidden = true; $('#scanStop').hidden = false;
+      $('#scanHint').textContent = 'Point at a printed QR code…';
+      const tick = async () => {
+        if (!scanStream) return;
+        if (video.videoWidth) {
+          scanCanvas.width = video.videoWidth; scanCanvas.height = video.videoHeight;
+          scanCanvas.getContext('2d').drawImage(video, 0, 0);
+          const res = await decodeCanvas(scanCanvas);
+          if (res) { showScanResult(res); return; }
+        }
+        scanRAF = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (e) {
+      $('#scanHint').textContent = 'Camera permission denied or unavailable. Use “Scan a photo”.';
+    }
+  }
+  function stopScan() {
+    if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
+    if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+    const v = $('#scanVideo'); if (v) v.srcObject = null;
+    if ($('#scanStart')) $('#scanStart').hidden = false;
+    if ($('#scanStop')) $('#scanStop').hidden = true;
+  }
+  function scanPhoto(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = async () => {
+        scanCanvas.width = img.naturalWidth; scanCanvas.height = img.naturalHeight;
+        scanCanvas.getContext('2d').drawImage(img, 0, 0);
+        const res = await decodeCanvas(scanCanvas);
+        if (res) showScanResult(res);
+        else { $('#scanResult').hidden = true; toast('No QR/barcode found in image'); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function initScan() {
+    $('#scanStart').addEventListener('click', startScan);
+    $('#scanStop').addEventListener('click', () => { stopScan(); $('#scanHint').textContent = 'Camera stopped.'; });
+    $('#scanFile').addEventListener('change', e => { scanPhoto(e.target.files[0]); e.target.value = ''; });
+    $('#scanPhotoBtn').addEventListener('click', () => $('#scanFile').click());
+  }
+
   function init() {
     initDesign();
     initBulk();
     initUnits();
     initSaved();
+    initScan();
     loadAllLogos(() => rerenderActive());
     $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
     renderDesign();

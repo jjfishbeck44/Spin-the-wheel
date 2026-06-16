@@ -1,5 +1,5 @@
 /* Leitz Label Studio service worker — cache-first offline shell. */
-const CACHE = 'leitz-labels-v4';
+const CACHE = 'leitz-labels-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './pdf.js',
   './vendor/qrcode-generator.js',
   './vendor/jsbarcode-code128.min.js',
+  './vendor/jsqr.js',
   './manifest.webmanifest',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
