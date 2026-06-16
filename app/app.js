@@ -53,12 +53,16 @@
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01',
     bold: true, align: 'left', font: 'system',
-    qr: true, qrData: 'TOTE-01', barcode: false, bcData: '',
+    qr: true, qrData: 'TOTE-01', qrType: 'text', qrEcc: 'M', qrScale: 100, qrLogo: false,
+    qrPass: '', qrEnc: 'WPA', qrHidden: false, qrSubject: '', qrBody: '', qrMsg: '',
+    qrOrg: '', qrPhone: '', qrEmail: '',
+    barcode: false, bcData: '',
     logo: false, logoId: null, logoPos: 'left', marginMm: 2,
   });
   const defaultBulk = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', font: 'system',
+    qrPrefix: '', qrEcc: 'M',
     logo: false, logoId: null, logoPos: 'left', items: '',
   });
   const defaults = () => ({
@@ -114,6 +118,7 @@
     list.forEach(l => cacheLogo(l.id, l.url, () => { if (--n === 0 && cb) cb(); }));
   }
   const getLogoImg = id => logoImgs[id] || null;
+  const firstLogoImg = () => (state.assets.logos[0] && getLogoImg(state.assets.logos[0].id)) || null;
   function rerenderActive() {
     if ($('#view-bulk').classList.contains('is-active')) renderBulk();
     else renderDesign();
@@ -192,8 +197,41 @@
     return best;
   }
 
-  function drawQR(ctx, data, x, y, size) {
-    const qr = qrcode(0, 'M');
+  // Build the encoded string for a QR from its content-type fields.
+  function qrPayload(s) {
+    const v = x => (x || '').trim();
+    const prim = v(s.qrData);
+    switch (s.qrType) {
+      case 'url': {
+        let u = prim;
+        if (u && !/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+        return u;
+      }
+      case 'phone': return prim ? 'tel:' + prim : '';
+      case 'sms': return prim ? 'SMSTO:' + prim + (v(s.qrMsg) ? ':' + v(s.qrMsg) : '') : '';
+      case 'email': {
+        const q = [];
+        if (v(s.qrSubject)) q.push('subject=' + encodeURIComponent(v(s.qrSubject)));
+        if (v(s.qrBody)) q.push('body=' + encodeURIComponent(v(s.qrBody)));
+        return prim ? 'mailto:' + prim + (q.length ? '?' + q.join('&') : '') : '';
+      }
+      case 'wifi': {
+        const esc = x => String(x).replace(/([\\;,:"])/g, '\\$1');
+        const enc = s.qrEnc || 'WPA';
+        return prim ? `WIFI:T:${enc};S:${esc(prim)};` +
+          (enc === 'nopass' ? '' : `P:${esc(v(s.qrPass))};`) +
+          (s.qrHidden ? 'H:true;' : '') + ';' : '';
+      }
+      case 'contact':
+        return prim ? ['BEGIN:VCARD', 'VERSION:3.0', `N:${prim}`, `FN:${prim}`,
+          v(s.qrOrg) && `ORG:${v(s.qrOrg)}`, v(s.qrPhone) && `TEL:${v(s.qrPhone)}`,
+          v(s.qrEmail) && `EMAIL:${v(s.qrEmail)}`, 'END:VCARD'].filter(Boolean).join('\n') : '';
+      default: return prim;
+    }
+  }
+
+  function drawQR(ctx, data, x, y, size, ecc, logoImage) {
+    const qr = qrcode(0, ecc || 'M');
     qr.addData(data || ' ');
     qr.make();
     const n = qr.getModuleCount();
@@ -207,6 +245,14 @@
         if (qr.isDark(r, c))
           ctx.fillRect(Math.floor(x + (c + quiet) * cell), Math.floor(y + (r + quiet) * cell),
                        Math.ceil(cell), Math.ceil(cell));
+    // Optional centre logo (knock out a white pad first; relies on high ECC).
+    if (logoImage && logoImage.naturalWidth) {
+      const ls = size * 0.22, pad = cell * 0.8;
+      const lx = x + (size - ls) / 2, ly = y + (size - ls) / 2;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(lx - pad, ly - pad, ls + 2 * pad, ls + 2 * pad);
+      drawLogo(ctx, logoImage, lx, ly, ls, ls);
+    }
   }
 
   function drawBarcode(ctx, data, x, y, w, h) {
@@ -241,7 +287,7 @@
     if (forcedLen != null) {
       lengthMm = clampLen(forcedLen);
     } else {
-      const qrW = spec.qr ? innerH : 0;
+      const qrW = spec.qr ? innerH * clamp((spec.qrScale ?? 100) / 100, 0.4, 1) : 0;
       let textW = 0;
       if (hasText) {
         const probe = Math.min(MAX_FONT_PX, Math.round(innerH * (lines[1] ? 0.5 : 0.66)));
@@ -271,8 +317,11 @@
       x1 -= logoW + gap;
     }
     if (spec.qr) {
-      const qsize = Math.min(innerH, (x1 - x0) * 0.85);
-      drawQR(ctx, spec.qrData || spec.line1 || ' ', x1 - qsize, y0 + (innerH - qsize) / 2, qsize);
+      const scale = clamp((spec.qrScale ?? 100) / 100, 0.4, 1);
+      const qsize = Math.min(innerH * scale, (x1 - x0) * 0.85);
+      const effEcc = spec.qrLogo ? 'H' : (spec.qrEcc || 'M');
+      const li = spec.qrLogo ? (getLogoImg(spec.logoId) || firstLogoImg()) : null;
+      drawQR(ctx, qrPayload(spec) || spec.line1 || ' ', x1 - qsize, y0 + (innerH - qsize) / 2, qsize, effEcc, li);
       x1 -= qsize + gap;
     }
     if (spec.barcode) {
@@ -382,6 +431,19 @@
     d.align = $('#d_align').value;
     d.qr = $('#d_qr').checked;
     d.qrData = $('#d_qrData').value;
+    d.qrType = $('#d_qrType').value;
+    d.qrEcc = $('#d_qrEcc').value;
+    d.qrScale = +$('#d_qrSize').value;
+    d.qrLogo = $('#d_qrLogo').checked;
+    d.qrPass = $('#d_qrPass').value;
+    d.qrEnc = $('#d_qrEnc').value;
+    d.qrHidden = $('#d_qrHidden').checked;
+    d.qrSubject = $('#d_qrSubject').value;
+    d.qrBody = $('#d_qrBody').value;
+    d.qrMsg = $('#d_qrMsg').value;
+    d.qrOrg = $('#d_qrOrg').value;
+    d.qrPhone = $('#d_qrPhone').value;
+    d.qrEmail = $('#d_qrEmail').value;
     d.barcode = $('#d_barcode').checked;
     d.bcData = $('#d_bcData').value;
     d.marginMm = +$('#d_margin').value;
@@ -390,6 +452,7 @@
   function renderDesign() {
     const d = readDesign();
     $('#d_qrWrap').hidden = !d.qr;
+    if (d.qr) syncQrTypeUI(d);
     $('#d_bcWrap').hidden = !d.barcode;
     $('#d_logoWrap').hidden = !d.logo;
     if (d.logo) renderLogoGallery('d', d);
@@ -417,6 +480,26 @@
     else { inp.min = '10'; inp.max = '2700'; inp.step = '1'; }
     inp.value = fmtU(mmVal);
   }
+  // Labels for the QR "primary" field and which extra blocks show, per type.
+  const QR_TYPES = {
+    text: { label: 'Contents', extra: null },
+    url: { label: 'Link (URL)', extra: null },
+    wifi: { label: 'Network name (SSID)', extra: 'd_qrWifi' },
+    email: { label: 'Email address', extra: 'd_qrEmailX' },
+    phone: { label: 'Phone number', extra: null },
+    sms: { label: 'Phone number', extra: 'd_qrSmsX' },
+    contact: { label: 'Full name', extra: 'd_qrContactX' },
+  };
+  function syncQrTypeUI(d) {
+    const t = QR_TYPES[d.qrType] || QR_TYPES.text;
+    $('#d_qrPrimaryLabel').textContent = t.label;
+    ['d_qrWifi', 'd_qrEmailX', 'd_qrSmsX', 'd_qrContactX'].forEach(id =>
+      { $('#' + id).hidden = (id !== t.extra); });
+    $('#d_qrSizeVal').textContent = d.qrScale;
+    const hasLogo = state.assets.logos.length > 0;
+    $('#d_qrLogo').disabled = !hasLogo;
+    $('#d_qrLogoWrap').classList.toggle('disabled', !hasLogo);
+  }
   function fillDesignInputs() {
     const d = state.design;
     fillFormatSelects('d', d);
@@ -426,6 +509,11 @@
     $('#d_line1').value = d.line1; $('#d_line2').value = d.line2;
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
     $('#d_qr').checked = d.qr; $('#d_qrData').value = d.qrData;
+    $('#d_qrType').value = d.qrType; $('#d_qrEcc').value = d.qrEcc;
+    $('#d_qrSize').value = d.qrScale; $('#d_qrLogo').checked = d.qrLogo;
+    $('#d_qrPass').value = d.qrPass; $('#d_qrEnc').value = d.qrEnc; $('#d_qrHidden').checked = d.qrHidden;
+    $('#d_qrSubject').value = d.qrSubject; $('#d_qrBody').value = d.qrBody; $('#d_qrMsg').value = d.qrMsg;
+    $('#d_qrOrg').value = d.qrOrg; $('#d_qrPhone').value = d.qrPhone; $('#d_qrEmail').value = d.qrEmail;
     $('#d_barcode').checked = d.barcode; $('#d_bcData').value = d.bcData;
     $('#d_margin').value = d.marginMm;
     $$('#designForm [data-len]').forEach(b => b.classList.toggle('is-active', b.dataset.len === d.lengthMode));
@@ -490,12 +578,14 @@
         type: b.type, widthMm: b.widthMm, dieIdx: b.dieIdx, orient: b.orient,
         lengthMode: b.lengthMode, lengthMm: b.lengthMm,
         line1: f0, line2: f1, bold: true, align: 'left', font: b.font,
-        qr: false, qrData: '', barcode: false, bcData: '',
+        qr: false, qrData: '', qrType: 'text', qrEcc: b.qrEcc, qrScale: 100,
+        barcode: false, bcData: '',
         logo: b.logo, logoId: b.logoId, logoPos: b.logoPos, marginMm: 2,
       };
-      if (b.layout === 'text-qr') { spec.qr = true; spec.qrData = code; }
+      const qrVal = (b.qrPrefix || '') + code;
+      if (b.layout === 'text-qr') { spec.qr = true; spec.qrData = qrVal; }
       else if (b.layout === 'text-barcode') { spec.barcode = true; spec.bcData = code; }
-      else if (b.layout === 'qr-only') { spec.qr = true; spec.qrData = code; spec.line1 = ''; spec.line2 = ''; }
+      else if (b.layout === 'qr-only') { spec.qr = true; spec.qrData = qrVal; spec.line1 = ''; spec.line2 = ''; }
       return spec;
     });
   }
@@ -505,9 +595,12 @@
     b.dieIdx = +$('#b_die').value;
     b.layout = $('#b_layout').value;
     b.font = $('#b_font').value;
+    b.qrPrefix = $('#b_qrPrefix').value;
+    b.qrEcc = $('#b_qrEcc').value;
     b.lengthMm = uToMm(+$('#b_length').value || mmToU(100));
     b.logo = $('#b_logo').checked;
     b.items = $('#b_items').value;
+    $('#b_qrWrap').hidden = !/qr/.test(b.layout);
     $('#b_logoWrap').hidden = !b.logo;
     if (b.logo) renderLogoGallery('b', b);
     $('#b_length').disabled = b.lengthMode !== 'fixed' || b.type !== 'continuous';
@@ -541,6 +634,8 @@
     fillFormatSelects('b', b);
     $('#b_layout').value = b.layout;
     $('#b_font').value = b.font;
+    $('#b_qrPrefix').value = b.qrPrefix;
+    $('#b_qrEcc').value = b.qrEcc;
     applyUnitToLengthInput('#b_length', b.lengthMm);
     $('#b_logo').checked = b.logo;
     $('#b_items').value = b.items;

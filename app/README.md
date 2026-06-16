@@ -44,6 +44,17 @@ step, no backend — your designs stay on your device.
 - **Offline** via service worker; **dark mode**, safe-area insets, home-screen
   install, native-feeling tab bar.
 
+### QR codes
+
+- **Content types** — encode plain text/ID, a **link (URL)**, **Wi-Fi**
+  network, **email**, **phone**, **SMS**, or a **contact card**, with the right
+  format generated for you.
+- **Error correction** (L/M/Q/H) for durability, an adjustable **size**, and an
+  optional **logo in the centre** (auto-uses high error correction so it still
+  scans).
+- In **Bulk**, set a **QR link/prefix** so each row's code becomes a unique URL
+  (e.g. `…/TOTE-001`), pairing with the sequence generator for serials.
+
 ### QR vs barcode
 
 - **QR code** scans with any phone camera — encode a **web link** to open a
