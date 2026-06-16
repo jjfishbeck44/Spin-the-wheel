@@ -124,12 +124,73 @@
         <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
         <div class="field sub" id="d_qrWrap" hidden>
           <label class="field">
-            <span>QR contents</span>
-            <input id="d_qrData" type="text" placeholder="TOTE-014 or https://…" maxlength="300" />
+            <span>QR type</span>
+            <select id="d_qrType">
+              <option value="text">Plain text / ID</option>
+              <option value="url">Link (URL)</option>
+              <option value="wifi">Wi-Fi network</option>
+              <option value="email">Email</option>
+              <option value="phone">Phone call</option>
+              <option value="sms">SMS</option>
+              <option value="contact">Contact card</option>
+            </select>
           </label>
-          <p class="hint">📷 Any phone camera scans a QR. Put a <b>web link</b> to
-          open a page (like the Home Depot app pulling up an item), or just an
-          ID like <code>TOTE-014</code>.</p>
+          <label class="field">
+            <span id="d_qrPrimaryLabel">Contents</span>
+            <input id="d_qrData" type="text" placeholder="TOTE-014 or https://…" maxlength="400" />
+          </label>
+
+          <div id="d_qrWifi" hidden>
+            <label class="field"><span>Password</span>
+              <input id="d_qrPass" type="text" maxlength="120" /></label>
+            <div class="field-row">
+              <label class="field inline"><span>Security</span>
+                <select id="d_qrEnc">
+                  <option value="WPA">WPA/WPA2</option>
+                  <option value="WEP">WEP</option>
+                  <option value="nopass">None</option>
+                </select></label>
+              <label class="chip-check"><input type="checkbox" id="d_qrHidden" /> Hidden</label>
+            </div>
+          </div>
+          <div id="d_qrEmailX" hidden>
+            <label class="field"><span>Subject</span>
+              <input id="d_qrSubject" type="text" maxlength="120" /></label>
+            <label class="field"><span>Body</span>
+              <input id="d_qrBody" type="text" maxlength="200" /></label>
+          </div>
+          <div id="d_qrSmsX" hidden>
+            <label class="field"><span>Message</span>
+              <input id="d_qrMsg" type="text" maxlength="200" /></label>
+          </div>
+          <div id="d_qrContactX" hidden>
+            <label class="field"><span>Organisation</span>
+              <input id="d_qrOrg" type="text" maxlength="80" /></label>
+            <div class="field-row">
+              <label class="field inline"><span>Phone</span>
+                <input id="d_qrPhone" type="text" maxlength="40" /></label>
+              <label class="field inline"><span>Email</span>
+                <input id="d_qrEmail" type="text" maxlength="120" /></label>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <label class="field inline"><span>Error correction</span>
+              <select id="d_qrEcc">
+                <option value="L">L · 7%</option>
+                <option value="M">M · 15%</option>
+                <option value="Q">Q · 25%</option>
+                <option value="H">H · 30%</option>
+              </select></label>
+            <label class="chip-check" id="d_qrLogoWrap"><input type="checkbox" id="d_qrLogo" /> Logo in centre</label>
+          </div>
+          <label class="field">
+            <span>QR size: <b id="d_qrSizeVal">100</b>%</span>
+            <input id="d_qrSize" type="range" min="40" max="100" step="5" value="100" />
+          </label>
+          <p class="hint">📷 Any phone camera scans a QR. Use <b>Link (URL)</b> so
+          scanning opens a page (like a store app pulling up an item). Higher
+          <b>error correction</b> survives scuffs; centre logo needs a logo added.</p>
         </div>
 
         <label class="chip-check block"><input type="checkbox" id="d_barcode" /> Add barcode (Code 128)</label>
@@ -243,6 +304,21 @@
           </label>
         </div>
 
+        <div class="field sub" id="b_qrWrap" hidden>
+          <div class="field-row">
+            <label class="field inline" style="flex:2"><span>QR link / prefix (optional)</span>
+              <input id="b_qrPrefix" type="text" placeholder="https://inv.example.com/" maxlength="200" /></label>
+            <label class="field inline"><span>Error corr.</span>
+              <select id="b_qrEcc">
+                <option value="L">L</option><option value="M">M</option>
+                <option value="Q">Q</option><option value="H">H</option>
+              </select></label>
+          </div>
+          <p class="hint">Each row's code is appended to the prefix, so every QR
+          becomes a unique link — pair with the sequence generator for serials
+          (e.g. <code>…/TOTE-001</code>).</p>
+        </div>
+
         <div class="seq-gen">
           <strong>Quick sequence</strong>
           <div class="seq-row">
@@ -345,10 +421,11 @@
 
         <h3>QR codes vs barcodes</h3>
         <ul>
-          <li><b>QR code</b> — scannable by <i>any phone camera</i>. Encode a
-          <b>web link</b> and scanning opens that page (like scanning a product
-          in the Home Depot app to pull it up), or just store an ID such as
-          <code>TOTE-014</code>. Best choice for most labels.</li>
+          <li><b>QR code</b> — scannable by <i>any phone camera</i>. Pick a
+          <b>type</b> (link, Wi-Fi, email, phone, SMS, contact) — a <b>link
+          (URL)</b> opens that page when scanned (like scanning a product in a
+          store app). Raise <b>error correction</b> for scuffed labels, adjust
+          the size, or drop a <b>logo in the centre</b>.</li>
           <li><b>Barcode (Code 128)</b> — the 1-D stripes used on shelves and
           warehouses; great with dedicated <i>inventory-scanner apps</i>, but it
           only holds a code (no link). Use QR if you'll scan with a phone.</li>
