@@ -27,8 +27,23 @@ step, no backend — your designs stay on your device.
 - **Logos** — keep a small gallery of logos; pick one per label and place it
   **left or right**. Auto-downscaled, rendered in monochrome, shared across
   Design and Bulk.
+- **Up to three text lines**, plus **symbols** (warning, fragile, this-way-up,
+  keep-dry, flammable, electrical, recycle, arrow) and an optional **border**.
+- **Tokens** — `{date}`, `{time}`, and `{n}` / `{n:3}` (zero-padded) expand in
+  text, QR, and barcodes; in **Bulk**, `{n}` is the row number.
+- **Copies** per label in Bulk.
 - **Saved designs** — save the current label by name and reload it any time
-  from the **Saved** tab (stored on-device).
+  from the **Saved** tab (stored on-device); rename or delete saved designs
+  and batch presets.
+- **Backup & restore** — export everything (designs, logos, presets, saved
+  labels, settings) to a JSON file and restore it on any device. The **More**
+  tab also shows storage usage.
+- **Printer calibration** — nudge every label (X/Y offset) and fine-tune the
+  scale to match your Icon; applies to PDF and Print, with a one-tap alignment
+  test print.
+- **Scan capture** — on the **Scan** tab, add scans to a list and export it as
+  CSV (a lightweight inventory check).
+- **Update prompt** — when a new version deploys, a banner offers to reload.
 - **Batch presets** — save a Bulk tab format setup (cartridge, layout, font,
   orientation, logo…) as a named preset and re-apply it in one tap.
 - **Scan test** — verify a printed label scans cleanly: scan with the camera

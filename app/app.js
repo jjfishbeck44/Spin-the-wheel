@@ -51,8 +51,8 @@
   const defaultDesign = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100,
-    line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01',
-    bold: true, align: 'left', font: 'system',
+    line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01', line3: '',
+    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none',
     qr: true, qrData: 'TOTE-01', qrType: 'text', qrEcc: 'M', qrScale: 100, qrLogo: false,
     qrPass: '', qrEnc: 'WPA', qrHidden: false, qrSubject: '', qrBody: '', qrMsg: '',
     qrOrg: '', qrPhone: '', qrEmail: '',
@@ -62,12 +62,14 @@
   const defaultBulk = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', font: 'system',
+    symbol: 'none', border: 'none', copies: 1,
     qrPrefix: '', qrEcc: 'M',
     logo: false, logoId: null, logoPos: 'left', items: '',
   });
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
-    settings: { units: 'mm' }, assets: { logos: [] }, saved: [], presets: [],
+    settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 } },
+    assets: { logos: [] }, saved: [], presets: [], scanLog: [],
   });
 
   let state = load();
@@ -79,9 +81,9 @@
         const d = defaults();
         const s = {
           design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
-          settings: { ...d.settings, ...p.settings },
+          settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) } },
           assets: { logos: (p.assets && p.assets.logos) || [] },
-          saved: p.saved || [], presets: p.presets || [],
+          saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [],
         };
         // Migrate the old single-logo asset to the new gallery.
         if (p.assets && p.assets.logo && !s.assets.logos.length) {
@@ -95,7 +97,13 @@
     } catch (e) {}
     return defaults();
   }
-  const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} };
+  let quotaWarned = false;
+  const save = () => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); quotaWarned = false; }
+    catch (e) {
+      if (!quotaWarned) { quotaWarned = true; toast('Storage full — back up & remove a logo'); }
+    }
+  };
 
   /* ---------------- Units (display only; internal is always mm) ---------------- */
   const unit = () => state.settings.units;
@@ -183,19 +191,98 @@
     while (lo <= hi) {
       const f = (lo + hi) >> 1;
       const f2 = Math.round(f * 0.58);
-      scratch.font = fontStr(f, bold, font);
-      let widest = scratch.measureText(lines[0]).width;
-      let totalH = f * 1.16;
-      if (lines[1]) {
-        scratch.font = fontStr(f2, bold, font);
-        widest = Math.max(widest, scratch.measureText(lines[1]).width);
-        totalH += f2 * 1.3;
-      }
+      let widest = 0, totalH = 0;
+      lines.forEach((ln, i) => {
+        const fs = i === 0 ? f : f2;
+        scratch.font = fontStr(fs, bold, font);
+        widest = Math.max(widest, scratch.measureText(ln).width);
+        totalH += i === 0 ? fs * 1.16 : fs * 1.3;
+      });
       if (widest <= boxW && totalH <= boxH) { best = f; lo = f + 1; }
       else hi = f - 1;
     }
     return best;
   }
+
+  // Substitute {date} {time} {n} {n:NN} (NN = zero-pad width) tokens.
+  function applyTokens(str, index) {
+    if (!str || str.indexOf('{') < 0) return str || '';
+    const now = new Date();
+    return str
+      .replace(/\{date\}/gi, now.toLocaleDateString())
+      .replace(/\{time\}/gi, now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+      .replace(/\{n(?::(\d+))?\}/gi, (_, w) => String(index || 1).padStart(w ? +w : 0, '0'));
+  }
+
+  // Built-in monochrome symbols, drawn as vector paths in a square box.
+  const SYMBOLS = {
+    none: { name: 'None' },
+    warning: { name: '⚠ Warning' }, fragile: { name: '🍷 Fragile' },
+    up: { name: '↑↑ This way up' }, dry: { name: '☂ Keep dry' },
+    flammable: { name: '🔥 Flammable' }, bolt: { name: '⚡ Electrical' },
+    arrow: { name: '→ Arrow' }, recycle: { name: '♻ Recycle' },
+  };
+  function drawSymbol(ctx, id, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#000'; ctx.strokeStyle = '#000';
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const lw = s * 0.07; ctx.lineWidth = lw;
+    const P = (fn) => { ctx.beginPath(); fn(); };
+    switch (id) {
+      case 'warning':
+        P(() => { ctx.moveTo(s * 0.5, s * 0.1); ctx.lineTo(s * 0.94, s * 0.86); ctx.lineTo(s * 0.06, s * 0.86); ctx.closePath(); });
+        ctx.stroke();
+        ctx.fillRect(s * 0.46, s * 0.36, s * 0.08, s * 0.26);
+        ctx.beginPath(); ctx.arc(s * 0.5, s * 0.74, s * 0.05, 0, 7); ctx.fill();
+        break;
+      case 'fragile':
+        P(() => { ctx.moveTo(s * 0.38, s * 0.12); ctx.lineTo(s * 0.62, s * 0.12); ctx.lineTo(s * 0.57, s * 0.4);
+          ctx.quadraticCurveTo(s * 0.5, s * 0.5, s * 0.43, s * 0.4); ctx.closePath(); }); ctx.fill();
+        ctx.fillRect(s * 0.48, s * 0.5, s * 0.04, s * 0.28);
+        ctx.fillRect(s * 0.34, s * 0.82, s * 0.32, s * 0.06);
+        break;
+      case 'up':
+        [0.34, 0.66].forEach(cx => {
+          P(() => { ctx.moveTo(s * cx, s * 0.16); ctx.lineTo(s * (cx + 0.13), s * 0.42); ctx.lineTo(s * (cx + 0.05), s * 0.42);
+            ctx.lineTo(s * (cx + 0.05), s * 0.8); ctx.lineTo(s * (cx - 0.05), s * 0.8); ctx.lineTo(s * (cx - 0.05), s * 0.42);
+            ctx.lineTo(s * (cx - 0.13), s * 0.42); ctx.closePath(); }); ctx.fill();
+        });
+        break;
+      case 'dry':
+        P(() => { ctx.arc(s * 0.5, s * 0.42, s * 0.3, Math.PI, 0); }); ctx.fill();
+        ctx.fillRect(s * 0.47, s * 0.42, s * 0.06, s * 0.34);
+        P(() => { ctx.arc(s * 0.5, s * 0.76, s * 0.1, 0, Math.PI); }); ctx.lineWidth = s * 0.06; ctx.stroke();
+        break;
+      case 'flammable':
+        P(() => { ctx.moveTo(s * 0.5, s * 0.12); ctx.quadraticCurveTo(s * 0.82, s * 0.46, s * 0.66, s * 0.7);
+          ctx.quadraticCurveTo(s * 0.64, s * 0.9, s * 0.4, s * 0.86); ctx.quadraticCurveTo(s * 0.2, s * 0.78, s * 0.34, s * 0.52);
+          ctx.quadraticCurveTo(s * 0.38, s * 0.62, s * 0.46, s * 0.6); ctx.quadraticCurveTo(s * 0.4, s * 0.36, s * 0.5, s * 0.12); });
+        ctx.fill();
+        break;
+      case 'bolt':
+        P(() => { ctx.moveTo(s * 0.56, s * 0.1); ctx.lineTo(s * 0.28, s * 0.56); ctx.lineTo(s * 0.46, s * 0.56);
+          ctx.lineTo(s * 0.4, s * 0.9); ctx.lineTo(s * 0.72, s * 0.42); ctx.lineTo(s * 0.52, s * 0.42); ctx.closePath(); });
+        ctx.fill();
+        break;
+      case 'arrow':
+        P(() => { ctx.moveTo(s * 0.12, s * 0.5); ctx.lineTo(s * 0.6, s * 0.5); }); ctx.lineWidth = s * 0.12; ctx.stroke();
+        P(() => { ctx.moveTo(s * 0.56, s * 0.28); ctx.lineTo(s * 0.88, s * 0.5); ctx.lineTo(s * 0.56, s * 0.72); ctx.closePath(); }); ctx.fill();
+        break;
+      case 'recycle':
+        ctx.lineWidth = s * 0.09;
+        for (let k = 0; k < 3; k++) {
+          ctx.save(); ctx.translate(s * 0.5, s * 0.5); ctx.rotate(k * 2 * Math.PI / 3);
+          P(() => { ctx.arc(0, 0, s * 0.3, -Math.PI / 2 - 0.5, -Math.PI / 6); }); ctx.stroke();
+          const ax = s * 0.3 * Math.cos(-Math.PI / 6), ay = s * 0.3 * Math.sin(-Math.PI / 6);
+          P(() => { ctx.moveTo(ax - s * 0.02, ay - s * 0.12); ctx.lineTo(ax + s * 0.12, ay + s * 0.02); ctx.lineTo(ax - s * 0.12, ay + s * 0.06); ctx.closePath(); }); ctx.fill();
+          ctx.restore();
+        }
+        break;
+    }
+    ctx.restore();
+  }
+
 
   // Build the encoded string for a QR from its content-type fields.
   function qrPayload(s) {
@@ -275,13 +362,16 @@
 
   // Build the label horizontally (text reads left-to-right).
   function composeHorizontal(spec, heightMm, forcedLen, marginMm) {
-    const hasText = !!(spec.line1 || spec.line2);
-    const lines = [spec.line1 || '', spec.line2 || ''].filter(Boolean);
+    const idx = spec._index || 1;
+    const lines = [spec.line1, spec.line2, spec.line3].map(l => applyTokens(l, idx)).filter(Boolean);
+    const hasText = lines.length > 0;
     const hPx = mm(heightMm), mPx = mm(marginMm), innerH = hPx - 2 * mPx, gap = mm(2.5);
     const logoImage = spec.logo ? getLogoImg(spec.logoId) : null;
     const useLogo = !!(logoImage && logoImage.naturalWidth);
     const logoW = useLogo ? Math.min(logoImage.naturalWidth / logoImage.naturalHeight * innerH, innerH * 1.5) : 0;
     const logoRight = useLogo && spec.logoPos === 'right';
+    const useSymbol = !!(spec.symbol && spec.symbol !== 'none' && SYMBOLS[spec.symbol]);
+    const symW = useSymbol ? innerH * 0.95 : 0;
 
     let lengthMm;
     if (forcedLen != null) {
@@ -293,12 +383,14 @@
         const probe = Math.min(MAX_FONT_PX, Math.round(innerH * (lines[1] ? 0.5 : 0.66)));
         scratch.font = fontStr(probe, spec.bold, spec.font);
         textW = scratch.measureText(lines[0]).width;
-        if (lines[1]) { scratch.font = fontStr(Math.round(probe * 0.58), spec.bold, spec.font);
-          textW = Math.max(textW, scratch.measureText(lines[1]).width); }
+        for (let i = 1; i < lines.length; i++) {
+          scratch.font = fontStr(Math.round(probe * 0.58), spec.bold, spec.font);
+          textW = Math.max(textW, scratch.measureText(lines[i]).width);
+        }
       }
-      let lp = (2 * mPx + (logoW ? logoW + gap : 0) + textW + (qrW ? qrW + gap : 0) + mm(4)) / PX;
+      let lp = (2 * mPx + (symW ? symW + gap : 0) + (logoW ? logoW + gap : 0) + textW + (qrW ? qrW + gap : 0) + mm(4)) / PX;
       if (spec.barcode) lp = Math.max(lp, 55);
-      lengthMm = clamp(lp, (spec.qr || useLogo) ? heightMm : 22, 2700);
+      lengthMm = clamp(lp, (spec.qr || useLogo || useSymbol) ? heightMm : 22, 2700);
     }
 
     const wPx = mm(lengthMm);
@@ -308,40 +400,58 @@
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, wPx, hPx);
 
     let x0 = mPx, y0 = mPx, x1 = wPx - mPx, y1 = hPx - mPx;
+    // Border (inset rectangle).
+    if (spec.border && spec.border !== 'none') {
+      const bw = spec.border === 'thick' ? mm(1.4) : mm(0.6);
+      const inset = bw / 2 + mm(0.6);
+      ctx.strokeStyle = '#000'; ctx.lineWidth = bw;
+      ctx.strokeRect(inset, inset, wPx - 2 * inset, hPx - 2 * inset);
+      const pad = bw + mm(1.2);
+      x0 += pad; y0 += pad; x1 -= pad; y1 -= pad;
+    }
+    const innerHd = y1 - y0;
+    if (useSymbol) {
+      drawSymbol(ctx, spec.symbol, x0, y0 + (innerHd - symW) / 2, symW);
+      x0 += symW + gap;
+    }
     if (useLogo && !logoRight) {
-      drawLogo(ctx, logoImage, x0, y0, logoW, innerH);
+      drawLogo(ctx, logoImage, x0, y0, logoW, innerHd);
       x0 += logoW + gap;
     }
     if (logoRight) {
-      drawLogo(ctx, logoImage, x1 - logoW, y0, logoW, innerH);
+      drawLogo(ctx, logoImage, x1 - logoW, y0, logoW, innerHd);
       x1 -= logoW + gap;
     }
     if (spec.qr) {
       const scale = clamp((spec.qrScale ?? 100) / 100, 0.4, 1);
-      const qsize = Math.min(innerH * scale, (x1 - x0) * 0.85);
+      const qsize = Math.min(innerHd * scale, (x1 - x0) * 0.85);
       const effEcc = spec.qrLogo ? 'H' : (spec.qrEcc || 'M');
       const li = spec.qrLogo ? (getLogoImg(spec.logoId) || firstLogoImg()) : null;
-      drawQR(ctx, qrPayload(spec) || spec.line1 || ' ', x1 - qsize, y0 + (innerH - qsize) / 2, qsize, effEcc, li);
+      const qdata = applyTokens(qrPayload(spec), idx) || lines[0] || ' ';
+      drawQR(ctx, qdata, x1 - qsize, y0 + (innerHd - qsize) / 2, qsize, effEcc, li);
       x1 -= qsize + gap;
     }
     if (spec.barcode) {
-      const bcH = Math.min(innerH * 0.45, mm(14));
-      if (drawBarcode(ctx, spec.bcData || spec.line1 || ' ', x0, y1 - bcH, Math.max(1, x1 - x0), bcH))
+      const bcH = Math.min(innerHd * 0.45, mm(14));
+      if (drawBarcode(ctx, applyTokens(spec.bcData, idx) || lines[0] || ' ', x0, y1 - bcH, Math.max(1, x1 - x0), bcH))
         y1 -= bcH + mm(1.5);
     }
     if (hasText && x1 - x0 > 4) {
       const boxW = x1 - x0, boxH = y1 - y0;
       const f = fitFont(lines, boxW, boxH, spec.bold, spec.font);
       const f2 = Math.round(f * 0.58);
-      const h1 = f * 1.16, h2 = lines[1] ? f2 * 1.3 : 0;
-      let ty = y0 + (boxH - (h1 + h2)) / 2;
+      let totalH = 0;
+      const heights = lines.map((ln, i) => { const h = i === 0 ? f * 1.16 : f2 * 1.3; totalH += h; return h; });
+      let ty = y0 + (boxH - totalH) / 2;
       ctx.textBaseline = 'top';
       ctx.textAlign = spec.align === 'center' ? 'center' : 'left';
       const tx = spec.align === 'center' ? x0 + boxW / 2 : x0;
       ctx.fillStyle = '#000';
-      ctx.font = fontStr(f, spec.bold, spec.font);
-      ctx.fillText(lines[0], tx, ty);
-      if (lines[1]) { ctx.font = fontStr(f2, spec.bold, spec.font); ctx.fillText(lines[1], tx, ty + h1); }
+      lines.forEach((ln, i) => {
+        ctx.font = fontStr(i === 0 ? f : f2, spec.bold, spec.font);
+        ctx.fillText(ln, tx, ty);
+        ty += heights[i];
+      });
     }
     return { canvas, wmm: lengthMm, hmm: heightMm };
   }
@@ -377,23 +487,35 @@
   const exportPNG = (label, name) => label.canvas.toBlob(b => { download(b, name); toast('PNG saved'); }, 'image/png');
   async function exportPDF(labels, name) {
     toast('Building PDF…');
-    const blob = await window.LabelPDF.buildPDF(labels.map(l => ({ canvas: l.canvas, wmm: l.wmm, hmm: l.hmm })));
+    const blob = await window.LabelPDF.buildPDF(
+      labels.map(l => ({ canvas: l.canvas, wmm: l.wmm, hmm: l.hmm })), state.settings.cal);
     download(blob, name);
     toast(`PDF saved · ${labels.length} label${labels.length > 1 ? 's' : ''}`);
   }
   function printLabels(labels) {
     const w = window.open('', '_blank');
     if (!w) { toast('Allow pop-ups to print'); return; }
+    const cal = state.settings.cal || { dx: 0, dy: 0, scale: 100 };
+    const tf = `translate(${cal.dx}mm, ${cal.dy}mm) scale(${(cal.scale || 100) / 100})`;
     const pages = labels.map(l => {
       const url = l.canvas.toDataURL('image/png');
-      return `<div class="pg" style="width:${l.wmm}mm;height:${l.hmm}mm"><img src="${url}" style="width:${l.wmm}mm;height:${l.hmm}mm"/></div>`;
+      return `<div class="pg" style="width:${l.wmm}mm;height:${l.hmm}mm">` +
+        `<img src="${url}" style="width:${l.wmm}mm;height:${l.hmm}mm;transform:${tf};transform-origin:center"/></div>`;
     }).join('');
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Print labels</title>
-      <style>@page{margin:0}html,body{margin:0;padding:0}.pg{page-break-after:always;display:block}img{display:block}
+      <style>@page{margin:0}html,body{margin:0;padding:0}.pg{page-break-after:always;display:block;overflow:hidden}img{display:block}
       @media screen{body{background:#777;padding:12px}.pg{background:#fff;margin:0 auto 12px;box-shadow:0 2px 8px rgba(0,0,0,.4)}}</style>
       </head><body>${pages}<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>`);
     w.document.close();
   }
+  // Expand labels by a per-job copies count.
+  const withCopies = (labels, n) => {
+    n = Math.max(1, Math.min(99, n | 0));
+    if (n === 1) return labels;
+    const out = [];
+    labels.forEach(l => { for (let i = 0; i < n; i++) out.push(l); });
+    return out;
+  };
   const labelName = s => (String(s || 'label').replace(/[^\w-]+/g, '_').slice(0, 24) || 'label');
 
   /* ---------------- Format control wiring (shared) ---------------- */
@@ -425,8 +547,11 @@
     d.lengthMm = uToMm(+$('#d_length').value || mmToU(100));
     d.logo = $('#d_logo').checked;
     d.font = $('#d_font').value;
+    d.symbol = $('#d_symbol').value;
+    d.border = $('#d_border').value;
     d.line1 = $('#d_line1').value;
     d.line2 = $('#d_line2').value;
+    d.line3 = $('#d_line3').value;
     d.bold = $('#d_bold').checked;
     d.align = $('#d_align').value;
     d.qr = $('#d_qr').checked;
@@ -506,7 +631,8 @@
     applyUnitToLengthInput('#d_length', d.lengthMm);
     $('#d_logo').checked = d.logo;
     $('#d_font').value = d.font;
-    $('#d_line1').value = d.line1; $('#d_line2').value = d.line2;
+    $('#d_symbol').value = d.symbol || 'none'; $('#d_border').value = d.border || 'none';
+    $('#d_line1').value = d.line1; $('#d_line2').value = d.line2; $('#d_line3').value = d.line3 || '';
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
     $('#d_qr').checked = d.qr; $('#d_qrData').value = d.qrData;
     $('#d_qrType').value = d.qrType; $('#d_qrEcc').value = d.qrEcc;
@@ -571,13 +697,14 @@
 
   /* ---------------- Bulk tab ---------------- */
   function parseItems(text, b) {
-    return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    return text.split('\n').map(l => l.trim()).filter(Boolean).map((line, i) => {
       const parts = line.split('|').map(s => s.trim());
       const f0 = parts[0] || '', f1 = parts[1] || '', code = parts[2] || parts[0] || '';
       const spec = {
         type: b.type, widthMm: b.widthMm, dieIdx: b.dieIdx, orient: b.orient,
-        lengthMode: b.lengthMode, lengthMm: b.lengthMm,
-        line1: f0, line2: f1, bold: true, align: 'left', font: b.font,
+        lengthMode: b.lengthMode, lengthMm: b.lengthMm, _index: i + 1,
+        line1: f0, line2: f1, line3: '', bold: true, align: 'left', font: b.font,
+        symbol: b.symbol, border: b.border,
         qr: false, qrData: '', qrType: 'text', qrEcc: b.qrEcc, qrScale: 100,
         barcode: false, bcData: '',
         logo: b.logo, logoId: b.logoId, logoPos: b.logoPos, marginMm: 2,
@@ -595,6 +722,9 @@
     b.dieIdx = +$('#b_die').value;
     b.layout = $('#b_layout').value;
     b.font = $('#b_font').value;
+    b.symbol = $('#b_symbol').value;
+    b.border = $('#b_border').value;
+    b.copies = clamp(+$('#b_copies').value || 1, 1, 99);
     b.qrPrefix = $('#b_qrPrefix').value;
     b.qrEcc = $('#b_qrEcc').value;
     b.lengthMm = uToMm(+$('#b_length').value || mmToU(100));
@@ -624,8 +754,9 @@
       m.textContent = `+ ${labels.length - 3} more`; thumbs.appendChild(m);
     }
     const fmt = b.type === 'diecut' ? DIECUTS[b.dieIdx].name.split(' — ')[0] : `${b.widthMm} mm`;
+    const copies = b.copies > 1 ? ` × ${b.copies} copies` : '';
     $('#bulkSummary').textContent = specs.length
-      ? `${specs.length} label${specs.length > 1 ? 's' : ''} · ${fmt} · ≈ ${(totalLen / 10).toFixed(1)} cm of tape`
+      ? `${specs.length} label${specs.length > 1 ? 's' : ''}${copies} · ${fmt} · ≈ ${(totalLen * b.copies / 10).toFixed(1)} cm of tape`
       : 'No items yet';
     return labels;
   }
@@ -634,6 +765,9 @@
     fillFormatSelects('b', b);
     $('#b_layout').value = b.layout;
     $('#b_font').value = b.font;
+    $('#b_symbol').value = b.symbol || 'none';
+    $('#b_border').value = b.border || 'none';
+    $('#b_copies').value = b.copies || 1;
     $('#b_qrPrefix').value = b.qrPrefix;
     $('#b_qrEcc').value = b.qrEcc;
     applyUnitToLengthInput('#b_length', b.lengthMm);
@@ -681,11 +815,19 @@
     $('#presetRail').addEventListener('click', e => {
       const del = e.target.closest('[data-delpreset]');
       if (del) { state.presets = state.presets.filter(x => x.id !== del.dataset.delpreset); save(); renderPresetRail(); return; }
+      const ren = e.target.closest('[data-renpreset]');
+      if (ren) {
+        const p = state.presets.find(x => x.id === ren.dataset.renpreset);
+        const name = (prompt('Rename preset:', p.name) || '').trim();
+        if (name) { p.name = name; save(); renderPresetRail(); }
+        return;
+      }
       if (e.target.closest('#savePresetBtn')) { saveBulkPreset(); return; }
       const chip = e.target.closest('[data-preset]');
       if (chip) applyPreset(chip.dataset.preset);
     });
-    ['#b_width', '#b_die', '#b_layout', '#b_length', '#b_items'].forEach(sel =>
+    ['#b_width', '#b_die', '#b_layout', '#b_length', '#b_items',
+     '#b_font', '#b_symbol', '#b_border', '#b_copies', '#b_qrPrefix', '#b_qrEcc'].forEach(sel =>
       $(sel).addEventListener('input', renderBulk));
     $$('#view-bulk [data-len]').forEach(x => x.addEventListener('click', () => {
       state.bulk.lengthMode = x.dataset.len; renderBulk();
@@ -731,13 +873,13 @@
     }));
 
     $('#b_pdf').addEventListener('click', async () => {
-      const labels = renderBulk();
+      const labels = withCopies(renderBulk(), state.bulk.copies);
       if (!labels.length) return toast('Add some items first');
       if (labels.length > 300 && !confirm(`Export ${labels.length} labels as PDF?`)) return;
       await exportPDF(labels, 'leitz-labels.pdf');
     });
     $('#b_print').addEventListener('click', () => {
-      const labels = renderBulk();
+      const labels = withCopies(renderBulk(), state.bulk.copies);
       if (!labels.length) return toast('Add some items first');
       printLabels(labels);
     });
@@ -774,6 +916,7 @@
     if (!rail) return;
     rail.innerHTML = state.presets.map(p =>
       `<span class="preset-chip" data-preset="${p.id}">${escapeHtml(p.name)}` +
+      `<button type="button" class="preset-ren" data-renpreset="${p.id}" aria-label="Rename preset">✎</button>` +
       `<button type="button" class="preset-del" data-delpreset="${p.id}" aria-label="Delete preset">✕</button></span>`).join('') +
       `<button type="button" class="preset-chip add" id="savePresetBtn">＋ Save preset</button>`;
   }
@@ -820,7 +963,9 @@
       name.textContent = s.name;
       const acts = document.createElement('div');
       acts.className = 'saved-acts';
-      acts.innerHTML = `<button class="btn-ghost sm" data-load="${s.id}">Load</button><button class="btn-ghost sm" data-del="${s.id}">Delete</button>`;
+      acts.innerHTML = `<button class="btn-ghost sm" data-load="${s.id}">Load</button>` +
+        `<button class="btn-ghost sm" data-ren="${s.id}">Rename</button>` +
+        `<button class="btn-ghost sm" data-del="${s.id}">Delete</button>`;
       card.append(thumb, name, acts);
       list.appendChild(card);
     });
@@ -830,6 +975,13 @@
     $('#savedList').addEventListener('click', e => {
       const load = e.target.closest('[data-load]');
       if (load) return loadSaved(load.dataset.load);
+      const ren = e.target.closest('[data-ren]');
+      if (ren) {
+        const s = state.saved.find(x => x.id === ren.dataset.ren);
+        const name = (prompt('Rename design:', s.name) || '').trim();
+        if (name) { s.name = name; save(); renderSaved(); }
+        return;
+      }
       const del = e.target.closest('[data-del]');
       if (del) { state.saved = state.saved.filter(x => x.id !== del.dataset.del); save(); renderSaved(); }
     });
@@ -843,6 +995,7 @@
     if (name !== 'scan') stopScan();
     if (name === 'bulk') renderBulk();
     if (name === 'saved') renderSaved();
+    if (name === 'more') updateStorageMeter();
   }
 
   function initUnits() {
@@ -883,11 +1036,48 @@
       <div class="scan-val"></div>
       <div class="scan-acts">
         ${isUrl ? '<a class="btn-primary" id="scanOpen" target="_blank" rel="noopener">Open link</a>' : ''}
+        <button class="btn-ghost" id="scanAdd">Add to list</button>
         <button class="btn-ghost" id="scanAgain">Scan again</button>
       </div>`;
     box.querySelector('.scan-val').textContent = res.value;
     if (isUrl) $('#scanOpen').href = res.value;
+    $('#scanAdd').addEventListener('click', () => { addScan(res.value); box.hidden = true; startScan(); });
     $('#scanAgain').addEventListener('click', () => { box.hidden = true; startScan(); });
+  }
+  function addScan(value) {
+    state.scanLog.unshift({ value, t: Date.now() });
+    if (state.scanLog.length > 500) state.scanLog.length = 500;
+    save(); renderScanLog();
+    toast('Added to list');
+  }
+  function renderScanLog() {
+    const wrap = $('#scanLogWrap'), list = $('#scanLog');
+    if (!list) return;
+    wrap.hidden = state.scanLog.length === 0;
+    $('#scanLogCount').textContent = state.scanLog.length;
+    list.innerHTML = state.scanLog.slice(0, 50).map((s, i) =>
+      `<li><span class="sl-val"></span><button class="sl-del" data-sldel="${i}" aria-label="Remove">✕</button></li>`).join('');
+    [...list.querySelectorAll('.sl-val')].forEach((el, i) => { el.textContent = state.scanLog[i].value; });
+  }
+  function exportScanCSV() {
+    if (!state.scanLog.length) return toast('List is empty');
+    const esc = v => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    const rows = [['value', 'scanned_at'], ...state.scanLog.map(s =>
+      [s.value, new Date(s.t).toISOString()])];
+    const csv = rows.map(r => r.map(esc).join(',')).join('\n');
+    download(new Blob([csv], { type: 'text/csv' }), 'scans.csv');
+    toast(`Exported ${state.scanLog.length} scans`);
+  }
+  function initScanLog() {
+    renderScanLog();
+    $('#scanExport').addEventListener('click', exportScanCSV);
+    $('#scanClear').addEventListener('click', () => {
+      if (state.scanLog.length && confirm('Clear the scanned list?')) { state.scanLog = []; save(); renderScanLog(); }
+    });
+    $('#scanLog').addEventListener('click', e => {
+      const d = e.target.closest('[data-sldel]');
+      if (d) { state.scanLog.splice(+d.dataset.sldel, 1); save(); renderScanLog(); }
+    });
   }
   async function startScan() {
     const video = $('#scanVideo');
@@ -947,16 +1137,124 @@
     $('#scanPhotoBtn').addEventListener('click', () => $('#scanFile').click());
   }
 
+  /* ---------------- More tab: backup, storage, calibration ---------------- */
+  function exportBackup() {
+    const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
+    const d = new Date().toISOString().slice(0, 10);
+    download(blob, `leitz-label-studio-backup-${d}.json`);
+    toast('Backup downloaded');
+  }
+  function importBackup(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try { data = JSON.parse(String(reader.result)); } catch (e) { return toast('Not a valid backup file'); }
+      if (!data || !data.design || !data.bulk) return toast('Not a Label Studio backup');
+      if (!confirm('Restore this backup? It replaces your current designs, logos, presets and settings.')) return;
+      const d = defaults();
+      state = {
+        design: { ...d.design, ...data.design }, bulk: { ...d.bulk, ...data.bulk },
+        settings: { ...d.settings, ...data.settings, cal: { ...d.settings.cal, ...(data.settings && data.settings.cal) } },
+        assets: { logos: (data.assets && data.assets.logos) || [] },
+        saved: data.saved || [], presets: data.presets || [], scanLog: data.scanLog || [],
+      };
+      save();
+      Object.keys(logoImgs).forEach(k => delete logoImgs[k]);
+      loadAllLogos(() => {
+        fillDesignInputs(); fillBulkInputs(); renderDesign(); renderPresetRail();
+        renderSaved(); renderScanLog(); updateStorageMeter();
+      });
+      toast('Backup restored');
+    };
+    reader.readAsText(file);
+  }
+  async function updateStorageMeter() {
+    const el = $('#storageMeter'); if (!el) return;
+    let used = 0;
+    try { used = new Blob([localStorage.getItem(STORE_KEY) || '']).size; } catch (e) {}
+    let line = `${(used / 1024).toFixed(0)} KB in this app`;
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        const est = await navigator.storage.estimate();
+        if (est.usage != null) line += ` · ${(est.usage / 1048576).toFixed(1)} MB total cached`;
+      }
+    } catch (e) {}
+    el.textContent = `${line} · ${state.assets.logos.length} logo(s)`;
+  }
+  // A printable alignment test: a framed label with centre cross + corner ticks.
+  function buildCalTest() {
+    const wmm = 88, hmm = 40;
+    const c = document.createElement('canvas');
+    c.width = mm(wmm); c.height = mm(hmm);
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.strokeStyle = '#000'; x.lineWidth = mm(0.5);
+    x.strokeRect(mm(1), mm(1), c.width - mm(2), c.height - mm(2));
+    x.beginPath();
+    x.moveTo(c.width / 2, mm(3)); x.lineTo(c.width / 2, c.height - mm(3));
+    x.moveTo(mm(3), c.height / 2); x.lineTo(c.width - mm(3), c.height / 2);
+    x.stroke();
+    x.fillStyle = '#000'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = fontStr(mm(5), true, 'system');
+    x.fillText('ALIGN 88 × 40 mm', c.width / 2, c.height / 2 - mm(8));
+    return { canvas: c, wmm, hmm };
+  }
+  function initMore() {
+    $('#backupBtn').addEventListener('click', exportBackup);
+    $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
+    $('#restoreFile').addEventListener('change', e => { importBackup(e.target.files[0]); e.target.value = ''; });
+
+    const cal = state.settings.cal;
+    const syncCal = () => {
+      $('#cal_dx').value = cal.dx; $('#cal_dy').value = cal.dy; $('#cal_scale').value = cal.scale;
+      $('#cal_dxv').textContent = cal.dx; $('#cal_dyv').textContent = cal.dy; $('#cal_scalev').textContent = cal.scale;
+    };
+    syncCal();
+    ['dx', 'dy', 'scale'].forEach(k => $('#cal_' + k).addEventListener('input', e => {
+      cal[k] = +e.target.value; save(); syncCal();
+    }));
+    $('#cal_reset').addEventListener('click', () => { cal.dx = 0; cal.dy = 0; cal.scale = 100; save(); syncCal(); });
+    $('#cal_test').addEventListener('click', () => printLabels([buildCalTest()]));
+    updateStorageMeter();
+  }
+
+  /* ---------------- Service-worker update prompt ---------------- */
+  function initSW() {
+    if (!('serviceWorker' in navigator)) return;
+    let updating = false;
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      const offer = w => {
+        if (!w) return;
+        $('#updateBanner').hidden = false;
+        $('#updateReload').onclick = () => { updating = true; w.postMessage('SKIP_WAITING'); };
+      };
+      if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw && nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) offer(nw);
+        });
+      });
+    }).catch(() => {});
+    // Only reload when the user accepted an update (avoids first-visit reload).
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (updating) location.reload();
+    });
+  }
+
   function init() {
     initDesign();
     initBulk();
     initUnits();
     initSaved();
     initScan();
+    initScanLog();
+    initMore();
     loadAllLogos(() => rerenderActive());
     $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
     renderDesign();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    initSW();
   }
   document.addEventListener('DOMContentLoaded', init);
 })();

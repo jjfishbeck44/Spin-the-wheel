@@ -99,6 +99,12 @@
           <span>Line 2 <em>(optional)</em></span>
           <input id="d_line2" type="text" placeholder="Bin A3 · M3–M6" maxlength="60" />
         </label>
+        <label class="field">
+          <span>Line 3 <em>(optional)</em></span>
+          <input id="d_line3" type="text" placeholder="{date} · updated" maxlength="60" />
+        </label>
+        <p class="hint">Tokens: <code>{date}</code>, <code>{time}</code>, and
+        <code>{n}</code> (or <code>{n:3}</code> for 001) work in text and the QR.</p>
 
         <div class="field-row">
           <label class="chip-check"><input type="checkbox" id="d_bold" checked /> Bold</label>
@@ -117,6 +123,31 @@
               <option value="condensed">Condensed</option>
               <option value="serif">Serif</option>
               <option value="mono">Mono</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-row">
+          <label class="field inline">
+            <span>Symbol</span>
+            <select id="d_symbol">
+              <option value="none">None</option>
+              <option value="warning">⚠ Warning</option>
+              <option value="fragile">🍷 Fragile</option>
+              <option value="up">↑↑ This way up</option>
+              <option value="dry">☂ Keep dry</option>
+              <option value="flammable">🔥 Flammable</option>
+              <option value="bolt">⚡ Electrical</option>
+              <option value="recycle">♻ Recycle</option>
+              <option value="arrow">→ Arrow</option>
+            </select>
+          </label>
+          <label class="field inline">
+            <span>Border</span>
+            <select id="d_border">
+              <option value="none">None</option>
+              <option value="thin">Thin</option>
+              <option value="thick">Thick</option>
             </select>
           </label>
         </div>
@@ -304,6 +335,38 @@
           </label>
         </div>
 
+        <div class="field-row">
+          <label class="field inline">
+            <span>Symbol</span>
+            <select id="b_symbol">
+              <option value="none">None</option>
+              <option value="warning">⚠ Warning</option>
+              <option value="fragile">🍷 Fragile</option>
+              <option value="up">↑↑ This way up</option>
+              <option value="dry">☂ Keep dry</option>
+              <option value="flammable">🔥 Flammable</option>
+              <option value="bolt">⚡ Electrical</option>
+              <option value="recycle">♻ Recycle</option>
+              <option value="arrow">→ Arrow</option>
+            </select>
+          </label>
+          <label class="field inline">
+            <span>Border</span>
+            <select id="b_border">
+              <option value="none">None</option>
+              <option value="thin">Thin</option>
+              <option value="thick">Thick</option>
+            </select>
+          </label>
+          <label class="field inline">
+            <span>Copies</span>
+            <input id="b_copies" type="number" min="1" max="99" value="1" inputmode="numeric" />
+          </label>
+        </div>
+
+        <p class="hint" style="margin-top:-2px">Tokens <code>{date}</code> and
+        <code>{n}</code> work per row (<code>{n}</code> = row number).</p>
+
         <div class="field sub" id="b_qrWrap" hidden>
           <div class="field-row">
             <label class="field inline" style="flex:2"><span>QR link / prefix (optional)</span>
@@ -383,6 +446,17 @@
           <button class="btn-ghost" id="scanPhotoBtn">Scan a photo</button>
         </div>
         <div class="scan-result" id="scanResult" hidden></div>
+
+        <div class="scan-log-wrap" id="scanLogWrap" hidden>
+          <div class="scan-log-head">
+            <strong>Captured (<span id="scanLogCount">0</span>)</strong>
+            <div>
+              <button class="btn-ghost sm" id="scanExport">Export CSV</button>
+              <button class="btn-ghost sm" id="scanClear">Clear</button>
+            </div>
+          </div>
+          <ul class="scan-log" id="scanLog"></ul>
+        </div>
       </div>
     </main>
 
@@ -397,9 +471,34 @@
     </main>
 
     <!-- ============ GUIDE ============ -->
-    <main id="view-guide" class="view">
+    <main id="view-more" class="view">
       <div class="guide">
-        <h2>Printing to your Leitz Icon</h2>
+        <h2>Backup &amp; restore</h2>
+        <p>Everything (designs, logos, presets, saved labels, settings) lives on
+        this device only. Export a backup file to keep it safe or move to another
+        device.</p>
+        <div class="more-actions">
+          <button class="btn-primary" id="backupBtn">⤓ Back up all data</button>
+          <input type="file" id="restoreFile" accept="application/json,.json" hidden />
+          <button class="btn-ghost" id="restoreBtn">⤒ Restore from file</button>
+        </div>
+        <p class="hint" id="storageMeter">—</p>
+
+        <h2 style="margin-top:26px">Printer calibration</h2>
+        <p>If the Icon prints slightly off, nudge every label and fine-tune the
+        scale. Applies to PDF export and Print.</p>
+        <label class="field"><span>Horizontal offset: <b id="cal_dxv">0</b> mm</span>
+          <input id="cal_dx" type="range" min="-5" max="5" step="0.5" value="0" /></label>
+        <label class="field"><span>Vertical offset: <b id="cal_dyv">0</b> mm</span>
+          <input id="cal_dy" type="range" min="-5" max="5" step="0.5" value="0" /></label>
+        <label class="field"><span>Scale: <b id="cal_scalev">100</b>%</span>
+          <input id="cal_scale" type="range" min="95" max="105" step="0.5" value="100" /></label>
+        <div class="more-actions">
+          <button class="btn-ghost" id="cal_test">🖶 Print alignment test</button>
+          <button class="btn-ghost" id="cal_reset">Reset</button>
+        </div>
+
+        <h2 style="margin-top:26px">Printing to your Leitz Icon</h2>
         <p>This app designs labels at the exact size of your Leitz Icon
         cartridges (88&nbsp;mm continuous by default) and renders them at the
         printer's native <b>300&nbsp;dpi</b>, so output prints 1:1.</p>
@@ -456,10 +555,14 @@
       <button class="tab" data-view="bulk" role="tab"><span class="tab-ico">▤</span><span>Bulk</span></button>
       <button class="tab" data-view="scan" role="tab"><span class="tab-ico">⛶</span><span>Scan</span></button>
       <button class="tab" data-view="saved" role="tab"><span class="tab-ico">★</span><span>Saved</span></button>
-      <button class="tab" data-view="guide" role="tab"><span class="tab-ico">?</span><span>Guide</span></button>
+      <button class="tab" data-view="more" role="tab"><span class="tab-ico">⋯</span><span>More</span></button>
     </nav>
   </div>
 
+  <div class="update-banner" id="updateBanner" hidden>
+    <span>A new version is ready.</span>
+    <button id="updateReload">Reload</button>
+  </div>
   <div class="toast" id="toast" hidden></div>
 
   <script src="vendor/qrcode-generator.js"></script>
