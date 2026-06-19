@@ -68,9 +68,45 @@ body {
   padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .preset-chip.add { color: var(--text-dim); border-style: dashed; }
-.preset-del {
+.preset-del, .preset-ren {
   border: none; background: var(--surface-2); color: var(--text-dim);
   width: 18px; height: 18px; border-radius: 50%; font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+}
+
+/* More tab: backup / calibration */
+.more-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 6px; }
+.more-actions .btn-primary, .more-actions .btn-ghost { flex: 1; min-width: 150px; text-align: center; }
+
+/* Update banner */
+.update-banner {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 10px);
+  max-width: 92%; z-index: 30;
+  background: var(--text); color: var(--bg);
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 12px 10px 18px; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  font-size: 14px; font-weight: 600;
+}
+.update-banner[hidden] { display: none; }
+.update-banner button {
+  border: none; background: var(--red); color: #fff; font-weight: 700;
+  padding: 8px 16px; border-radius: 999px; cursor: pointer;
+}
+
+/* Scan capture list */
+.scan-log-wrap { margin-top: 18px; }
+.scan-log-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.scan-log-head > div { display: flex; gap: 8px; }
+.scan-log { list-style: none; margin: 0; padding: 0; }
+.scan-log li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 12px; margin-bottom: 7px;
+}
+.scan-log .sl-val { word-break: break-all; font-size: 14px; }
+.scan-log .sl-del {
+  border: none; background: var(--surface-2); color: var(--text-dim);
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer; flex: 0 0 auto;
 }
 
 /* Scan test */

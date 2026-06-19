@@ -51,8 +51,9 @@
     return { gray, width, height };
   }
 
-  /* pages: [{ canvas, wmm, hmm }] -> Blob(application/pdf) */
-  async function buildPDF(pages) {
+  /* pages: [{ canvas, wmm, hmm }] -> Blob(application/pdf)
+   * cal: optional { dx, dy, scale } print calibration (mm offset, % scale). */
+  async function buildPDF(pages, cal) {
     const enc = new TextEncoder();
     const chunks = [];
     let len = 0;
@@ -83,7 +84,14 @@
         `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${wpt} ${hpt}] ` +
         `/Resources << /XObject << /Im0 ${imageNum} 0 R >> >> /Contents ${contentNum} 0 R >>`));
 
-      const content = enc.encode(`q\n${wpt} 0 0 ${hpt} 0 0 cm\n/Im0 Do\nQ\n`);
+      const s = cal && cal.scale ? cal.scale / 100 : 1;
+      const dxpt = mmToPt((cal && cal.dx) || 0);
+      const dypt = mmToPt((cal && cal.dy) || 0);
+      const wp = mmToPt(pg.wmm), hp = mmToPt(pg.hmm);
+      const sx = (wp * s).toFixed(3), sy = (hp * s).toFixed(3);
+      const tx = (dxpt + (wp - wp * s) / 2).toFixed(3);
+      const ty = (-dypt + (hp - hp * s) / 2).toFixed(3);
+      const content = enc.encode(`q\n${sx} 0 0 ${sy} ${tx} ${ty} cm\n/Im0 Do\nQ\n`);
       offsets[contentNum] = len;
       pushStr(`${contentNum} 0 obj\n<< /Length ${content.length} >>\nstream\n`);
       push(content);
