@@ -47,6 +47,10 @@
     <!-- ============ DESIGN ============ -->
     <main id="view-design" class="view is-active">
       <section class="preview-wrap">
+        <div class="undo-bar">
+          <button type="button" id="undoBtn" disabled aria-label="Undo">↶ Undo</button>
+          <button type="button" id="redoBtn" disabled aria-label="Redo">↷ Redo</button>
+        </div>
         <div class="preview-scroll" id="previewScroll">
           <canvas id="previewCanvas"></canvas>
         </div>
@@ -265,6 +269,7 @@
 
       <div class="actions">
         <button class="btn-ghost" id="d_png">PNG</button>
+        <button class="btn-ghost" id="d_svg">SVG</button>
         <button class="btn-ghost" id="d_pdf">PDF</button>
         <button class="btn-primary" id="d_print">Print</button>
       </div>
@@ -396,7 +401,16 @@
         <div class="csv-row">
           <input type="file" id="b_csv" accept=".csv,text/csv" hidden />
           <button type="button" class="btn-ghost sm" id="b_csvBtn">⤓ Import CSV</button>
-          <span class="hint">Columns → Line 1, Line 2, code. A header row is skipped.</span>
+          <span class="hint">Import, then choose which column goes where.</span>
+        </div>
+
+        <div class="csv-mapper" id="csvMapper" hidden>
+          <strong>Map columns</strong>
+          <div class="csv-map-row">
+            <label class="field inline"><span>Line 1</span><select id="csvMapL1"></select></label>
+            <label class="field inline"><span>Line 2</span><select id="csvMapL2"></select></label>
+            <label class="field inline"><span>QR / code</span><select id="csvMapCode"></select></label>
+          </div>
         </div>
 
         <label class="field">

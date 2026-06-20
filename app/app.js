@@ -72,38 +72,83 @@
     assets: { logos: [] }, saved: [], presets: [], scanLog: [],
   });
 
-  let state = load();
-  function load() {
+  // Normalise a parsed blob into a complete state object.
+  function normalizeState(p) {
+    const d = defaults();
+    if (!p || !p.design) return d;
+    const s = {
+      design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
+      settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) } },
+      assets: { logos: (p.assets && p.assets.logos) || [] },
+      saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [],
+    };
+    // Migrate the old single-logo asset to the new gallery.
+    if (p.assets && p.assets.logo && !s.assets.logos.length) {
+      const id = uid();
+      s.assets.logos = [{ id, url: p.assets.logo }];
+      if (s.design.logo) s.design.logoId = id;
+      if (s.bulk.logo) s.bulk.logoId = id;
+    }
+    return s;
+  }
+
+  /* ---------------- IndexedDB persistence ---------------- */
+  // Primary store is IndexedDB (large capacity for logos/backups); we migrate
+  // any existing localStorage data on first run.
+  const IDB_NAME = 'leitzlabels', IDB_STORE = 'kv', IDB_KEY = 'state';
+  let idbPromise = null;
+  function openIDB() {
+    if (idbPromise) return idbPromise;
+    idbPromise = new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) return reject(new Error('no idb'));
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return idbPromise;
+  }
+  function idbGet(key) {
+    return openIDB().then(db => new Promise((res, rej) => {
+      const r = db.transaction(IDB_STORE).objectStore(IDB_STORE).get(key);
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+  }
+  function idbSet(key, val) {
+    return openIDB().then(db => new Promise((res, rej) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+    }));
+  }
+
+  let state = defaults();
+  async function loadState() {
+    try {
+      const rec = await idbGet(IDB_KEY);
+      if (rec) return normalizeState(rec);
+    } catch (e) { /* fall through to localStorage */ }
+    // Migrate from the previous localStorage store, if present.
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) {
-        const p = JSON.parse(raw);
-        const d = defaults();
-        const s = {
-          design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
-          settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) } },
-          assets: { logos: (p.assets && p.assets.logos) || [] },
-          saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [],
-        };
-        // Migrate the old single-logo asset to the new gallery.
-        if (p.assets && p.assets.logo && !s.assets.logos.length) {
-          const id = uid();
-          s.assets.logos = [{ id, url: p.assets.logo }];
-          if (s.design.logo) s.design.logoId = id;
-          if (s.bulk.logo) s.bulk.logoId = id;
-        }
+        const s = normalizeState(JSON.parse(raw));
+        idbSet(IDB_KEY, s).then(() => { try { localStorage.removeItem(STORE_KEY); } catch (e) {} }).catch(() => {});
         return s;
       }
     } catch (e) {}
     return defaults();
   }
-  let quotaWarned = false;
-  const save = () => {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); quotaWarned = false; }
-    catch (e) {
-      if (!quotaWarned) { quotaWarned = true; toast('Storage full — back up & remove a logo'); }
-    }
-  };
+
+  let saveTimer = null, quotaWarned = false;
+  function persist() {
+    idbSet(IDB_KEY, state).then(() => { quotaWarned = false; }).catch(() => {
+      // Fall back to localStorage; warn once if even that fails (quota).
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+      catch (e) { if (!quotaWarned) { quotaWarned = true; toast('Storage full — back up & remove a logo'); } }
+    });
+  }
+  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 150); };
 
   /* ---------------- Units (display only; internal is always mm) ---------------- */
   const unit = () => state.settings.units;
@@ -360,8 +405,8 @@
     ctx.drawImage(img, x + (boxW - w) / 2, y + (boxH - h) / 2, w, h);
   }
 
-  // Build the label horizontally (text reads left-to-right).
-  function composeHorizontal(spec, heightMm, forcedLen, marginMm) {
+  // Compute a layout plan (positions only) shared by the canvas + SVG renderers.
+  function planLabel(spec, heightMm, forcedLen, marginMm) {
     const idx = spec._index || 1;
     const lines = [spec.line1, spec.line2, spec.line3].map(l => applyTokens(l, idx)).filter(Boolean);
     const hasText = lines.length > 0;
@@ -394,47 +439,30 @@
     }
 
     const wPx = mm(lengthMm);
-    const canvas = document.createElement('canvas');
-    canvas.width = wPx; canvas.height = hPx;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, wPx, hPx);
-
+    const els = [];
     let x0 = mPx, y0 = mPx, x1 = wPx - mPx, y1 = hPx - mPx;
-    // Border (inset rectangle).
     if (spec.border && spec.border !== 'none') {
       const bw = spec.border === 'thick' ? mm(1.4) : mm(0.6);
       const inset = bw / 2 + mm(0.6);
-      ctx.strokeStyle = '#000'; ctx.lineWidth = bw;
-      ctx.strokeRect(inset, inset, wPx - 2 * inset, hPx - 2 * inset);
-      const pad = bw + mm(1.2);
-      x0 += pad; y0 += pad; x1 -= pad; y1 -= pad;
+      els.push({ t: 'border', x: inset, y: inset, w: wPx - 2 * inset, h: hPx - 2 * inset, lw: bw });
+      const pad = bw + mm(1.2); x0 += pad; y0 += pad; x1 -= pad; y1 -= pad;
     }
     const innerHd = y1 - y0;
-    if (useSymbol) {
-      drawSymbol(ctx, spec.symbol, x0, y0 + (innerHd - symW) / 2, symW);
-      x0 += symW + gap;
-    }
-    if (useLogo && !logoRight) {
-      drawLogo(ctx, logoImage, x0, y0, logoW, innerHd);
-      x0 += logoW + gap;
-    }
-    if (logoRight) {
-      drawLogo(ctx, logoImage, x1 - logoW, y0, logoW, innerHd);
-      x1 -= logoW + gap;
-    }
+    if (useSymbol) { els.push({ t: 'symbol', id: spec.symbol, x: x0, y: y0 + (innerHd - symW) / 2, s: symW }); x0 += symW + gap; }
+    if (useLogo && !logoRight) { els.push({ t: 'logo', img: logoImage, x: x0, y: y0, w: logoW, h: innerHd }); x0 += logoW + gap; }
+    if (logoRight) { els.push({ t: 'logo', img: logoImage, x: x1 - logoW, y: y0, w: logoW, h: innerHd }); x1 -= logoW + gap; }
     if (spec.qr) {
       const scale = clamp((spec.qrScale ?? 100) / 100, 0.4, 1);
       const qsize = Math.min(innerHd * scale, (x1 - x0) * 0.85);
       const effEcc = spec.qrLogo ? 'H' : (spec.qrEcc || 'M');
       const li = spec.qrLogo ? (getLogoImg(spec.logoId) || firstLogoImg()) : null;
-      const qdata = applyTokens(qrPayload(spec), idx) || lines[0] || ' ';
-      drawQR(ctx, qdata, x1 - qsize, y0 + (innerHd - qsize) / 2, qsize, effEcc, li);
+      els.push({ t: 'qr', data: applyTokens(qrPayload(spec), idx) || lines[0] || ' ', ecc: effEcc, centerLogo: li, x: x1 - qsize, y: y0 + (innerHd - qsize) / 2, size: qsize });
       x1 -= qsize + gap;
     }
     if (spec.barcode) {
       const bcH = Math.min(innerHd * 0.45, mm(14));
-      if (drawBarcode(ctx, applyTokens(spec.bcData, idx) || lines[0] || ' ', x0, y1 - bcH, Math.max(1, x1 - x0), bcH))
-        y1 -= bcH + mm(1.5);
+      els.push({ t: 'barcode', data: applyTokens(spec.bcData, idx) || lines[0] || ' ', x: x0, y: y1 - bcH, w: Math.max(1, x1 - x0), h: bcH });
+      y1 -= bcH + mm(1.5);
     }
     if (hasText && x1 - x0 > 4) {
       const boxW = x1 - x0, boxH = y1 - y0;
@@ -443,17 +471,37 @@
       let totalH = 0;
       const heights = lines.map((ln, i) => { const h = i === 0 ? f * 1.16 : f2 * 1.3; totalH += h; return h; });
       let ty = y0 + (boxH - totalH) / 2;
-      ctx.textBaseline = 'top';
-      ctx.textAlign = spec.align === 'center' ? 'center' : 'left';
+      const anchor = spec.align === 'center' ? 'center' : 'left';
       const tx = spec.align === 'center' ? x0 + boxW / 2 : x0;
-      ctx.fillStyle = '#000';
       lines.forEach((ln, i) => {
-        ctx.font = fontStr(i === 0 ? f : f2, spec.bold, spec.font);
-        ctx.fillText(ln, tx, ty);
+        els.push({ t: 'text', text: ln, size: i === 0 ? f : f2, x: tx, y: ty, anchor, bold: spec.bold, font: spec.font });
         ty += heights[i];
       });
     }
-    return { canvas, wmm: lengthMm, hmm: heightMm };
+    return { wPx, hPx, wmm: lengthMm, hmm: heightMm, els };
+  }
+  function drawPlan(ctx, plan) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, plan.wPx, plan.hPx);
+    plan.els.forEach(e => {
+      if (e.t === 'border') { ctx.strokeStyle = '#000'; ctx.lineWidth = e.lw; ctx.strokeRect(e.x, e.y, e.w, e.h); }
+      else if (e.t === 'symbol') drawSymbol(ctx, e.id, e.x, e.y, e.s);
+      else if (e.t === 'logo') drawLogo(ctx, e.img, e.x, e.y, e.w, e.h);
+      else if (e.t === 'qr') drawQR(ctx, e.data, e.x, e.y, e.size, e.ecc, e.centerLogo);
+      else if (e.t === 'barcode') drawBarcode(ctx, e.data, e.x, e.y, e.w, e.h);
+      else if (e.t === 'text') {
+        ctx.fillStyle = '#000'; ctx.textBaseline = 'top';
+        ctx.textAlign = e.anchor === 'center' ? 'center' : 'left';
+        ctx.font = fontStr(e.size, e.bold, e.font);
+        ctx.fillText(e.text, e.x, e.y);
+      }
+    });
+  }
+  function composeHorizontal(spec, heightMm, forcedLen, marginMm) {
+    const plan = planLabel(spec, heightMm, forcedLen, marginMm);
+    const canvas = document.createElement('canvas');
+    canvas.width = plan.wPx; canvas.height = plan.hPx;
+    drawPlan(canvas.getContext('2d'), plan);
+    return { canvas, wmm: plan.wmm, hmm: plan.hmm };
   }
 
   /* spec -> { canvas, wmm, hmm }. Handles die-cut + 90° rotation. */
@@ -517,6 +565,73 @@
     return out;
   };
   const labelName = s => (String(s || 'label').replace(/[^\w-]+/g, '_').slice(0, 24) || 'label');
+
+  /* ---------------- SVG (vector) export ---------------- */
+  // Text + QR + border are true vector; logo/symbol/barcode embed crisp rasters.
+  function qrPathD(data, ecc, x, y, size) {
+    const qr = qrcode(0, ecc || 'M'); qr.addData(data || ' '); qr.make();
+    const n = qr.getModuleCount(), quiet = 2, cell = size / (n + quiet * 2);
+    let d = '';
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (qr.isDark(r, c)) {
+          const px = x + (c + quiet) * cell, py = y + (r + quiet) * cell;
+          d += `M${px.toFixed(2)} ${py.toFixed(2)}h${cell.toFixed(2)}v${cell.toFixed(2)}h${(-cell).toFixed(2)}z`;
+        }
+    return d;
+  }
+  function rasterDataURL(w, h, draw) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+    draw(c.getContext('2d'), c.width, c.height);
+    return c.toDataURL('image/png');
+  }
+  function svgEl(e) {
+    if (e.t === 'border')
+      return `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" fill="none" stroke="#000" stroke-width="${e.lw.toFixed(2)}"/>`;
+    if (e.t === 'text')
+      return `<text x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" font-family="${escapeHtml((FONTS[e.font] || FONTS.system).css)}" font-size="${e.size.toFixed(1)}" font-weight="${e.bold ? 700 : 500}" fill="#000" text-anchor="${e.anchor === 'center' ? 'middle' : 'start'}" dominant-baseline="text-before-edge">${escapeHtml(e.text)}</text>`;
+    if (e.t === 'qr') {
+      let s = `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.size.toFixed(2)}" height="${e.size.toFixed(2)}" fill="#fff"/>` +
+        `<path d="${qrPathD(e.data, e.ecc, e.x, e.y, e.size)}" fill="#000"/>`;
+      if (e.centerLogo && e.centerLogo.src) {
+        const ls = e.size * 0.22, lx = e.x + (e.size - ls) / 2, ly = e.y + (e.size - ls) / 2, pad = ls * 0.18;
+        s += `<rect x="${(lx - pad).toFixed(2)}" y="${(ly - pad).toFixed(2)}" width="${(ls + 2 * pad).toFixed(2)}" height="${(ls + 2 * pad).toFixed(2)}" fill="#fff"/>` +
+          `<image x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" width="${ls.toFixed(2)}" height="${ls.toFixed(2)}" preserveAspectRatio="xMidYMid meet" href="${e.centerLogo.src}"/>`;
+      }
+      return s;
+    }
+    if (e.t === 'logo')
+      return `<image x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" preserveAspectRatio="xMidYMid meet" href="${e.img.src}"/>`;
+    if (e.t === 'symbol') {
+      const url = rasterDataURL(e.s, e.s, (c) => drawSymbol(c, e.id, 0, 0, e.s));
+      return `<image x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.s.toFixed(2)}" height="${e.s.toFixed(2)}" href="${url}"/>`;
+    }
+    if (e.t === 'barcode') {
+      const url = rasterDataURL(e.w, e.h, (c, w, h) => { c.fillStyle = '#fff'; c.fillRect(0, 0, w, h); drawBarcode(c, e.data, 0, 0, w, h); });
+      return `<image x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" preserveAspectRatio="none" href="${url}"/>`;
+    }
+    return '';
+  }
+  function svgForSpec(spec) {
+    const die = spec.type === 'diecut' ? DIECUTS[spec.dieIdx || 0] : null;
+    const heightMm = die ? die.h : spec.widthMm;
+    const forcedLen = die ? die.l : (spec.lengthMode === 'fixed' ? clampLen(spec.lengthMm) : null);
+    const plan = planLabel(spec, heightMm, forcedLen, Math.max(0, spec.marginMm ?? 2));
+    const W = plan.wPx, H = plan.hPx;
+    let body = `<rect width="${W}" height="${H}" fill="#fff"/>` + plan.els.map(svgEl).join('');
+    let wmm = plan.wmm, hmm = plan.hmm, vbW = W, vbH = H;
+    if (spec.orient === 'v') {
+      body = `<g transform="translate(0 ${W}) rotate(-90)">${body}</g>`;
+      wmm = plan.hmm; hmm = plan.wmm; vbW = H; vbH = W;
+    }
+    return `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${wmm}mm" height="${hmm}mm" viewBox="0 0 ${vbW} ${vbH}">${body}</svg>`;
+  }
+  function exportSVG(spec, name) {
+    download(new Blob([svgForSpec(spec)], { type: 'image/svg+xml' }), name);
+    toast('SVG saved');
+  }
 
   /* ---------------- Format control wiring (shared) ---------------- */
   // Populate a continuous-width <select> and die-cut <select>.
@@ -595,6 +710,57 @@
     $('#previewMeta').textContent =
       `${fmtU(label.wmm)} × ${fmtU(label.hmm)} ${unit()} · ${label.canvas.width} × ${label.canvas.height} px @ ${DPI} dpi`;
     save();
+    recordHistory();
+  }
+
+  /* ---------------- Undo / redo (design) ---------------- */
+  const undoStack = [], redoStack = [];
+  let committed = null, histTimer = null, suppressHistory = false;
+  const snapDesign = () => JSON.stringify(state.design);
+  function updateUndoButtons() {
+    const u = $('#undoBtn'), r = $('#redoBtn');
+    if (u) u.disabled = !undoStack.length;
+    if (r) r.disabled = !redoStack.length;
+  }
+  function recordHistory() {
+    if (committed === null) { committed = snapDesign(); updateUndoButtons(); return; }
+    if (suppressHistory) return;
+    const cur = snapDesign();
+    if (cur === committed) return;
+    clearTimeout(histTimer);
+    histTimer = setTimeout(() => {
+      if (snapDesign() === committed) return;
+      undoStack.push(committed);
+      if (undoStack.length > 60) undoStack.shift();
+      committed = snapDesign();
+      redoStack.length = 0;
+      updateUndoButtons();
+    }, 450);
+  }
+  function applyDesignSnapshot(str) {
+    committed = str;
+    state.design = JSON.parse(str);
+    suppressHistory = true;
+    fillDesignInputs();
+    renderDesign();
+    suppressHistory = false;
+    updateUndoButtons();
+  }
+  function commitPending() {
+    clearTimeout(histTimer);
+    const cur = snapDesign();
+    if (committed !== null && cur !== committed) { undoStack.push(committed); committed = cur; redoStack.length = 0; }
+  }
+  function undo() {
+    commitPending();
+    if (!undoStack.length) return;
+    redoStack.push(committed);
+    applyDesignSnapshot(undoStack.pop());
+  }
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(committed);
+    applyDesignSnapshot(redoStack.pop());
   }
   // Update a length number input's range/step + its unit label for current unit.
   function applyUnitToLengthInput(inputSel, mmVal) {
@@ -690,8 +856,18 @@
       state.design.logoPos = b.dataset.pos; renderDesign();
     }));
 
+    $('#undoBtn').addEventListener('click', undo);
+    $('#redoBtn').addEventListener('click', redo);
+    document.addEventListener('keydown', e => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
+    });
+
     $('#d_png').addEventListener('click', () => exportPNG(currentDesignLabel, labelName(state.design.line1) + '.png'));
     $('#d_pdf').addEventListener('click', () => exportPDF([currentDesignLabel], labelName(state.design.line1) + '.pdf'));
+    $('#d_svg').addEventListener('click', () => exportSVG(state.design, labelName(state.design.line1) + '.svg'));
     $('#d_print').addEventListener('click', () => printLabels([currentDesignLabel]));
   }
 
@@ -794,20 +970,37 @@
     if (field.length || row.length) { row.push(field); rows.push(row); }
     return rows.filter(r => r.some(x => x.trim() !== ''));
   }
+  let csvRows = [];           // last imported rows (data only, header removed)
+  let csvHeaders = [];        // header names or "Column N"
   function importCSV(text) {
     let rows = parseCSV(text);
     if (!rows.length) { toast('No rows found in CSV'); return; }
+    const cols = Math.max(...rows.map(r => r.length));
     const first = rows[0].join(' ').toLowerCase();
-    if (rows.length > 1 && /name|label|line|code|qr|text|item|title|desc|sku|part/.test(first))
-      rows = rows.slice(1);
-    const lines = rows.map(r => {
-      const parts = [(r[0] || '').trim(), (r[1] || '').trim(), (r[2] || '').trim()];
+    const hasHeader = rows.length > 1 && /name|label|line|code|qr|text|item|title|desc|sku|part|location|qty/.test(first);
+    csvHeaders = [];
+    for (let i = 0; i < cols; i++) csvHeaders.push(hasHeader ? (rows[0][i] || `Column ${i + 1}`) : `Column ${i + 1}`);
+    csvRows = hasHeader ? rows.slice(1) : rows;
+    // Build the mapper selects (default: 0→Line1, 1→Line2, 2→code).
+    const opts = sel => `<option value="-1">— none —</option>` +
+      csvHeaders.map((h, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${escapeHtml(h)}</option>`).join('');
+    $('#csvMapL1').innerHTML = opts(0);
+    $('#csvMapL2').innerHTML = opts(cols > 1 ? 1 : -1);
+    $('#csvMapCode').innerHTML = opts(cols > 2 ? 2 : 0);
+    $('#csvMapper').hidden = false;
+    applyCsvMapping();
+    toast(`Imported ${csvRows.length} row${csvRows.length > 1 ? 's' : ''}`);
+  }
+  function applyCsvMapping() {
+    if (!csvRows.length) return;
+    const l1 = +$('#csvMapL1').value, l2 = +$('#csvMapL2').value, cd = +$('#csvMapCode').value;
+    const lines = csvRows.map(r => {
+      const parts = [l1 >= 0 ? (r[l1] || '').trim() : '', l2 >= 0 ? (r[l2] || '').trim() : '', cd >= 0 ? (r[cd] || '').trim() : ''];
       while (parts.length && parts[parts.length - 1] === '') parts.pop();
       return parts.join(' | ');
     }).filter(Boolean);
     $('#b_items').value = lines.join('\n');
     renderBulk();
-    toast(`Imported ${lines.length} row${lines.length > 1 ? 's' : ''}`);
   }
   function initBulk() {
     fillBulkInputs();
@@ -856,6 +1049,7 @@
       e.target.value = '';
     });
     $('#b_csvBtn').addEventListener('click', () => $('#b_csv').click());
+    ['#csvMapL1', '#csvMapL2', '#csvMapCode'].forEach(s => $(s).addEventListener('change', applyCsvMapping));
 
     $('#b_logo').addEventListener('change', () => {
       if ($('#b_logo').checked && !state.assets.logos.length) $('#b_logoFile').click();
@@ -1152,14 +1346,8 @@
       try { data = JSON.parse(String(reader.result)); } catch (e) { return toast('Not a valid backup file'); }
       if (!data || !data.design || !data.bulk) return toast('Not a Label Studio backup');
       if (!confirm('Restore this backup? It replaces your current designs, logos, presets and settings.')) return;
-      const d = defaults();
-      state = {
-        design: { ...d.design, ...data.design }, bulk: { ...d.bulk, ...data.bulk },
-        settings: { ...d.settings, ...data.settings, cal: { ...d.settings.cal, ...(data.settings && data.settings.cal) } },
-        assets: { logos: (data.assets && data.assets.logos) || [] },
-        saved: data.saved || [], presets: data.presets || [], scanLog: data.scanLog || [],
-      };
-      save();
+      state = normalizeState(data);
+      persist();
       Object.keys(logoImgs).forEach(k => delete logoImgs[k]);
       loadAllLogos(() => {
         fillDesignInputs(); fillBulkInputs(); renderDesign(); renderPresetRail();
@@ -1172,8 +1360,8 @@
   async function updateStorageMeter() {
     const el = $('#storageMeter'); if (!el) return;
     let used = 0;
-    try { used = new Blob([localStorage.getItem(STORE_KEY) || '']).size; } catch (e) {}
-    let line = `${(used / 1024).toFixed(0)} KB in this app`;
+    try { used = new Blob([JSON.stringify(state)]).size; } catch (e) {}
+    let line = `${(used / 1024).toFixed(0)} KB of data`;
     try {
       if (navigator.storage && navigator.storage.estimate) {
         const est = await navigator.storage.estimate();
@@ -1256,5 +1444,9 @@
     renderDesign();
     initSW();
   }
-  document.addEventListener('DOMContentLoaded', init);
+  async function boot() {
+    state = await loadState();
+    init();
+  }
+  document.addEventListener('DOMContentLoaded', boot);
 })();

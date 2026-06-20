@@ -54,8 +54,14 @@ step, no backend — your designs stay on your device.
   Line 1 / Line 2 / code and a header row is skipped automatically.
 - **mm / inch toggle** — switch measurement units in the header (88 mm ≈
   3.46 in); lengths and the preview readout follow the chosen unit.
-- **Export & print** — lossless **PDF** (one label per page, exact mm) or
-  **PNG**, plus a **Print** sheet (AirPrint / Save to Files as PDF).
+- **Export & print** — lossless **PDF** (one label per page, exact mm), **PNG**,
+  or true-vector **SVG** (crisp text + QR at any scale), plus a **Print** sheet
+  (AirPrint / Save to Files as PDF).
+- **Undo / redo** in the designer (buttons + ⌘/Ctrl-Z, ⇧⌘Z / Ctrl-Y).
+- **CSV column mapper** — after importing, choose which column maps to
+  Line 1 / Line 2 / QR.
+- **Large on-device storage** — data is kept in **IndexedDB** (with automatic
+  migration from older versions), so many logos and backups fit comfortably.
 - **Offline** via service worker; **dark mode**, safe-area insets, home-screen
   install, native-feeling tab bar.
 

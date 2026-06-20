@@ -57,6 +57,24 @@ body {
 
 .logo-actions { display: flex; gap: 8px; }
 
+/* Undo / redo bar */
+.undo-bar { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 8px; }
+.undo-bar button {
+  border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 9px; cursor: pointer;
+}
+.undo-bar button:disabled { opacity: .4; }
+
+/* CSV column mapper */
+.csv-mapper {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
+  padding: 12px; box-shadow: var(--shadow);
+}
+.csv-mapper strong { font-size: 14px; }
+.csv-map-row { display: flex; gap: 8px; margin-top: 9px; }
+.csv-map-row .field { flex: 1; min-width: 0; }
+.csv-map-row select { font-size: 14px; padding: 8px 8px; }
+
 /* Batch presets */
 .preset-bar { padding: 12px 16px 0; }
 .preset-label { font-size: 13px; font-weight: 700; color: var(--text-dim); }
