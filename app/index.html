@@ -156,6 +156,11 @@
           </label>
         </div>
 
+        <div class="field">
+          <span>Tape colour <em>(preview only — print is black on the tape)</em></span>
+          <div class="tape-swatches" id="d_tape"></div>
+        </div>
+
         <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
         <div class="field sub" id="d_qrWrap" hidden>
           <label class="field">
@@ -256,6 +261,7 @@
 
         <div class="save-row">
           <button type="button" class="btn-ghost" id="saveDesignBtn">☆ Save current design</button>
+          <button type="button" class="btn-ghost" id="queueAddCurrent">＋ Add to queue</button>
         </div>
 
         <details class="advanced">
@@ -477,9 +483,23 @@
     <!-- ============ SAVED ============ -->
     <main id="view-saved" class="view">
       <div class="saved-wrap">
-        <h2 class="saved-title">Saved designs</h2>
-        <p class="saved-sub">Reusable labels saved on this device. Tap <b>Load</b>
-        to open one in the Design tab.</p>
+        <div class="queue-wrap" id="queueWrap" hidden>
+          <div class="queue-head">
+            <h2 class="saved-title">Print queue (<span id="queueCount">0</span>)</h2>
+            <div>
+              <button class="btn-ghost sm" id="queuePdf">Export PDF</button>
+              <button class="btn-ghost sm" id="queuePrint">Print all</button>
+              <button class="btn-ghost sm" id="queueClear">Clear</button>
+            </div>
+          </div>
+          <p class="saved-sub">Different labels printed together in one run.</p>
+          <div class="queue-list" id="queueList"></div>
+        </div>
+
+        <h2 class="saved-title" style="margin-top:22px">Saved designs</h2>
+        <p class="saved-sub">Reusable labels saved on this device. <b>Load</b> to
+        edit, <b>＋ Queue</b> to add to the print run.</p>
+        <input class="saved-search" id="savedSearch" type="search" placeholder="Search designs…" />
         <div class="saved-list" id="savedList"></div>
       </div>
     </main>

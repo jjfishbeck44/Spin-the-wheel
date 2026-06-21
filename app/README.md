@@ -33,8 +33,12 @@ step, no backend — your designs stay on your device.
   text, QR, and barcodes; in **Bulk**, `{n}` is the row number.
 - **Copies** per label in Bulk.
 - **Saved designs** — save the current label by name and reload it any time
-  from the **Saved** tab (stored on-device); rename or delete saved designs
-  and batch presets.
+  from the **Saved** tab (stored on-device); **search**, **duplicate**, rename
+  or delete saved designs and batch presets.
+- **Print queue** — collect several *different* labels (the current design or
+  any saved ones), reorder them, and **print / export them together** in one run.
+- **Tape-colour preview** — visualise your design on a coloured cartridge
+  (preview only; printing is always black on the physical tape).
 - **Backup & restore** — export everything (designs, logos, presets, saved
   labels, settings) to a JSON file and restore it on any device. The **More**
   tab also shows storage usage.
