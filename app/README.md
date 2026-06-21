@@ -35,8 +35,13 @@ step, no backend — your designs stay on your device.
 - **Saved designs** — save the current label by name and reload it any time
   from the **Saved** tab (stored on-device); **search**, **duplicate**, rename
   or delete saved designs and batch presets.
+- **Inverse mode** — white-on-black labels for high-visibility warnings; QR and
+  barcodes keep a white patch so they still scan.
 - **Print queue** — collect several *different* labels (the current design or
-  any saved ones), reorder them, and **print / export them together** in one run.
+  any saved ones), reorder them, set **per-item copies**, duplicate, and
+  **print / export them together** in one run.
+- **Sheet layout** — tile copies of the current design onto an **A4/Letter**
+  PDF for an ordinary inkjet/laser printer (sticker paper), no Icon required.
 - **Tape-colour preview** — visualise your design on a coloured cartridge
   (preview only; printing is always black on the physical tape).
 - **Backup & restore** — export everything (designs, logos, presets, saved

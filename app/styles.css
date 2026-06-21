@@ -81,7 +81,10 @@ body {
 .queue-row { display: flex; align-items: center; gap: 10px; }
 .queue-thumb { flex: 0 0 auto; width: 92px; background: #fff; border: 1px solid var(--line); border-radius: 7px; padding: 4px; overflow: hidden; }
 .queue-thumb canvas { max-width: 100%; max-height: 38px; height: auto; display: block; margin: 0 auto; }
-.queue-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+.queue-name > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-copies { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--text-dim); font-weight: 600; margin-top: 3px; }
+.queue-copies input { width: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 7px; padding: 3px 5px; font-size: 13px; text-align: center; }
 .queue-acts { display: flex; gap: 4px; flex: 0 0 auto; }
 .queue-acts .btn-ghost.sm { padding: 6px 9px; }
 

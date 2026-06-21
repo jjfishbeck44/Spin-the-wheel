@@ -119,5 +119,73 @@
     return new Blob(chunks, { type: 'application/pdf' });
   }
 
-  window.LabelPDF = { buildPDF };
+  /* Tile `count` copies of one label onto pages of size pageWmm×pageHmm.
+   * opts: { pageWmm, pageHmm, marginMm, gapMm }. Returns Blob or null if the
+   * label is too big for the page. */
+  async function buildSheetPDF(label, count, opts) {
+    const o = Object.assign({ pageWmm: 210, pageHmm: 297, marginMm: 8, gapMm: 3 }, opts || {});
+    const cols = Math.floor((o.pageWmm - 2 * o.marginMm + o.gapMm) / (label.wmm + o.gapMm));
+    const rows = Math.floor((o.pageHmm - 2 * o.marginMm + o.gapMm) / (label.hmm + o.gapMm));
+    if (cols < 1 || rows < 1) return null;
+    const perPage = cols * rows;
+    const pages = Math.max(1, Math.ceil(count / perPage));
+
+    const enc = new TextEncoder();
+    const chunks = [];
+    let len = 0;
+    const offsets = [];
+    const push = u8 => { chunks.push(u8); len += u8.length; };
+    const pushStr = s => push(enc.encode(s));
+    push(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
+    const obj = (num, fn) => { offsets[num] = len; pushStr(`${num} 0 obj\n`); fn(); pushStr('\nendobj\n'); };
+
+    const pageWpt = mmToPt(o.pageWmm).toFixed(3), pageHpt = mmToPt(o.pageHmm).toFixed(3);
+    const lwpt = mmToPt(label.wmm), lhpt = mmToPt(label.hmm);
+    const mpt = mmToPt(o.marginMm), gpt = mmToPt(o.gapMm);
+
+    // obj1 Catalog, obj2 Pages, obj3 shared image, then content+page per page.
+    const kids = [];
+    for (let i = 0; i < pages; i++) kids.push(`${4 + i * 2} 0 R`);
+    obj(1, () => pushStr('<< /Type /Catalog /Pages 2 0 R >>'));
+    obj(2, () => pushStr(`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages} >>`));
+
+    const { gray, width, height } = canvasToGray(label.canvas);
+    const stream = await deflate(gray);
+    offsets[3] = len;
+    pushStr(`3 0 obj\n<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ` +
+      `/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${stream.length} >>\nstream\n`);
+    push(stream); pushStr('\nendstream\nendobj\n');
+
+    // Kids reference 4+p*2 as the page object; content stream is 5+p*2.
+    let placed = 0;
+    for (let p = 0; p < pages; p++) {
+      const pageNum = 4 + p * 2, contentNum = 5 + p * 2;
+      let ops = '';
+      for (let r = 0; r < rows && placed < count; r++) {
+        for (let c = 0; c < cols && placed < count; c++, placed++) {
+          const tx = (mpt + c * (lwpt + gpt)).toFixed(3);
+          const ty = (mmToPt(o.pageHmm) - mpt - r * (lhpt + gpt) - lhpt).toFixed(3);
+          ops += `q ${lwpt.toFixed(3)} 0 0 ${lhpt.toFixed(3)} ${tx} ${ty} cm /Im0 Do Q\n`;
+        }
+      }
+      obj(pageNum, () => pushStr(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWpt} ${pageHpt}] ` +
+        `/Resources << /XObject << /Im0 3 0 R >> >> /Contents ${contentNum} 0 R >>`));
+      const content = enc.encode(ops);
+      offsets[contentNum] = len;
+      pushStr(`${contentNum} 0 obj\n<< /Length ${content.length} >>\nstream\n`);
+      push(content);
+      pushStr('\nendstream\nendobj\n');
+    }
+
+    const total = 3 + pages * 2;
+    const xrefOffset = len;
+    let xref = `xref\n0 ${total + 1}\n0000000000 65535 f \n`;
+    for (let n = 1; n <= total; n++) xref += String(offsets[n]).padStart(10, '0') + ' 00000 n \n';
+    pushStr(xref);
+    pushStr(`trailer\n<< /Size ${total + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+    return new Blob(chunks, { type: 'application/pdf' });
+  }
+
+  window.LabelPDF = { buildPDF, buildSheetPDF };
 })();
