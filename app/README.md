@@ -33,8 +33,10 @@ step, no backend — your designs stay on your device.
   text, QR, and barcodes; in **Bulk**, `{n}` is the row number.
 - **Copies** per label in Bulk.
 - **Saved designs** — save the current label by name and reload it any time
-  from the **Saved** tab (stored on-device); **search**, **duplicate**, rename
-  or delete saved designs and batch presets.
+  from the **Saved** tab (stored on-device); **search**, **folders**,
+  **duplicate**, rename or delete saved designs and batch presets.
+- **Share a design** — generate a compact **link + QR**; opening it on another
+  device loads the design (logos stay local).
 - **Inverse mode** — white-on-black labels for high-visibility warnings; QR and
   barcodes keep a white patch so they still scan.
 - **Print queue** — collect several *different* labels (the current design or

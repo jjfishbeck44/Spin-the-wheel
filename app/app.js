@@ -646,6 +646,43 @@
     toast('SVG saved');
   }
 
+  /* ---------------- Share a design as a link + QR ---------------- */
+  const b64urlEnc = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const b64urlDec = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+  // Only the fields that differ from defaults (keeps the link/QR small).
+  function diffSpec(spec) {
+    const d = defaultDesign(), out = {};
+    Object.keys(d).forEach(k => { if (JSON.stringify(spec[k]) !== JSON.stringify(d[k])) out[k] = spec[k]; });
+    // Logos are device-local images — don't travel in a link.
+    delete out.logo; delete out.logoId;
+    return out;
+  }
+  function buildShareLink(spec) {
+    const payload = b64urlEnc(JSON.stringify(diffSpec(spec)));
+    return location.origin + location.pathname + '#design=' + payload;
+  }
+  function openShareDialog() {
+    readDesign();
+    const link = buildShareLink(state.design);
+    $('#shareLink').value = link;
+    const cv = $('#shareQr');
+    const size = 220 * (window.devicePixelRatio || 1);
+    cv.width = size; cv.height = size;
+    cv.style.width = cv.style.height = '220px';
+    drawQR(cv.getContext('2d'), link, 0, 0, size, 'M');
+    $('#shareDialog').showModal();
+  }
+  function importSharedFromHash() {
+    const m = (location.hash || '').match(/design=([^&]+)/);
+    if (!m) return false;
+    try {
+      const spec = JSON.parse(b64urlDec(m[1]));
+      state.design = { ...defaultDesign(), ...spec, logo: false, logoId: null };
+      history.replaceState(null, '', location.pathname + location.search);
+      return true;
+    } catch (e) { return false; }
+  }
+
   /* ---------------- Format control wiring (shared) ---------------- */
   // Populate a continuous-width <select> and die-cut <select>.
   function fillFormatSelects(prefix, st) {
@@ -898,6 +935,14 @@
     $('#d_pdf').addEventListener('click', () => exportPDF([currentDesignLabel], labelName(state.design.line1) + '.pdf'));
     $('#d_svg').addEventListener('click', () => exportSVG(state.design, labelName(state.design.line1) + '.svg'));
     $('#d_print').addEventListener('click', () => printLabels([currentDesignLabel]));
+
+    $('#shareBtn').addEventListener('click', openShareDialog);
+    $('#shareCopy').addEventListener('click', () => {
+      const inp = $('#shareLink'); inp.select();
+      const done = () => toast('Link copied');
+      if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(done, () => { document.execCommand('copy'); done(); });
+      else { document.execCommand('copy'); done(); }
+    });
   }
 
   /* ---------------- Bulk tab ---------------- */
@@ -1165,7 +1210,7 @@
     switchView('design');
     toast(`Loaded “${s.name}”`);
   }
-  let savedFilter = '';
+  let savedFilter = '', savedFolderFilter = '';
   function thumbCanvas(spec) {
     const label = renderLabel(spec);
     const cv = document.createElement('canvas');
@@ -1173,17 +1218,32 @@
     cv.getContext('2d').drawImage(label.canvas, 0, 0);
     return cv;
   }
+  const folderOf = s => (s.folder || '').trim() || 'Unfiled';
+  function renderFolderChips() {
+    const rail = $('#savedFolders');
+    if (!rail) return;
+    const folders = [...new Set(state.saved.map(folderOf))].sort();
+    if (state.saved.length <= 1 || (folders.length === 1 && folders[0] === 'Unfiled')) {
+      rail.innerHTML = ''; rail.hidden = true; return;
+    }
+    rail.hidden = false;
+    const chip = (val, label) => `<button class="folder-chip ${savedFolderFilter === val ? 'is-active' : ''}" data-folder="${escapeHtml(val)}">${escapeHtml(label)}</button>`;
+    rail.innerHTML = chip('', 'All') + folders.map(f => chip(f, f)).join('');
+  }
   function renderSaved() {
     const list = $('#savedList');
     if (!list) return;
+    renderFolderChips();
     list.innerHTML = '';
     const q = savedFilter.trim().toLowerCase();
-    const items = q ? state.saved.filter(s => s.name.toLowerCase().includes(q)) : state.saved;
+    let items = state.saved;
+    if (savedFolderFilter) items = items.filter(s => folderOf(s) === savedFolderFilter);
+    if (q) items = items.filter(s => s.name.toLowerCase().includes(q));
     if (!state.saved.length) {
       list.innerHTML = '<p class="empty">No saved designs yet. Build a label on the Design tab, then tap “Save current design”.</p>';
       return;
     }
-    if (!items.length) { list.innerHTML = '<p class="empty">No designs match your search.</p>'; return; }
+    if (!items.length) { list.innerHTML = '<p class="empty">No designs match.</p>'; return; }
     items.forEach(s => {
       const card = document.createElement('div');
       card.className = 'saved-card';
@@ -1193,10 +1253,12 @@
       const name = document.createElement('div');
       name.className = 'saved-name';
       name.textContent = s.name;
+      if (s.folder) { const tag = document.createElement('span'); tag.className = 'saved-folder'; tag.textContent = s.folder; name.appendChild(tag); }
       const acts = document.createElement('div');
       acts.className = 'saved-acts';
       acts.innerHTML = `<button class="btn-ghost sm" data-load="${s.id}">Load</button>` +
         `<button class="btn-ghost sm" data-queue="${s.id}">＋ Queue</button>` +
+        `<button class="btn-ghost sm" data-folder-set="${s.id}">Folder</button>` +
         `<button class="btn-ghost sm" data-dup="${s.id}">Duplicate</button>` +
         `<button class="btn-ghost sm" data-ren="${s.id}">Rename</button>` +
         `<button class="btn-ghost sm" data-del="${s.id}">Delete</button>`;
@@ -1207,9 +1269,20 @@
   function initSaved() {
     $('#saveDesignBtn').addEventListener('click', () => { saveCurrentDesign(); renderSaved(); });
     $('#savedSearch').addEventListener('input', e => { savedFilter = e.target.value; renderSaved(); });
+    $('#savedFolders').addEventListener('click', e => {
+      const c = e.target.closest('[data-folder]');
+      if (c) { savedFolderFilter = c.dataset.folder; renderSaved(); }
+    });
     $('#savedList').addEventListener('click', e => {
       const load = e.target.closest('[data-load]');
       if (load) return loadSaved(load.dataset.load);
+      const fset = e.target.closest('[data-folder-set]');
+      if (fset) {
+        const s = state.saved.find(x => x.id === fset.dataset.folderSet);
+        const f = prompt('Folder name (leave blank to clear):', s.folder || '');
+        if (f !== null) { s.folder = f.trim(); savedFolderFilter = ''; save(); renderSaved(); }
+        return;
+      }
       const q = e.target.closest('[data-queue]');
       if (q) { const s = state.saved.find(x => x.id === q.dataset.queue); if (s) addToQueue(s.spec, s.name); return; }
       const dup = e.target.closest('[data-dup]');
@@ -1595,7 +1668,9 @@
   }
   async function boot() {
     state = await loadState();
+    const shared = importSharedFromHash();
     init();
+    if (shared) toast('Imported shared design');
   }
   document.addEventListener('DOMContentLoaded', boot);
 })();

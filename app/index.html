@@ -264,6 +264,7 @@
         <div class="save-row">
           <button type="button" class="btn-ghost" id="saveDesignBtn">☆ Save current design</button>
           <button type="button" class="btn-ghost" id="queueAddCurrent">＋ Add to queue</button>
+          <button type="button" class="btn-ghost" id="shareBtn">↗ Share</button>
         </div>
 
         <details class="advanced">
@@ -504,6 +505,7 @@
         <p class="saved-sub">Reusable labels saved on this device. <b>Load</b> to
         edit, <b>＋ Queue</b> to add to the print run.</p>
         <input class="saved-search" id="savedSearch" type="search" placeholder="Search designs…" />
+        <div class="folder-rail" id="savedFolders" hidden></div>
         <div class="saved-list" id="savedList"></div>
       </div>
     </main>
@@ -615,6 +617,18 @@
       <button class="tab" data-view="more" role="tab"><span class="tab-ico">⋯</span><span>More</span></button>
     </nav>
   </div>
+
+  <dialog id="shareDialog" class="share-dialog">
+    <h2>Share design</h2>
+    <p>Open this link on another device to load the design. (Logos aren't
+    included — they stay on this device.)</p>
+    <canvas id="shareQr" width="220" height="220"></canvas>
+    <div class="share-link-row">
+      <input id="shareLink" type="text" readonly />
+      <button type="button" class="btn-primary" id="shareCopy">Copy</button>
+    </div>
+    <form method="dialog"><button class="btn-ghost">Close</button></form>
+  </dialog>
 
   <div class="update-banner" id="updateBanner" hidden>
     <span>A new version is ready.</span>
