@@ -59,7 +59,7 @@
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01', line3: '',
-    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none', tape: '#ffffff',
+    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none', tape: '#ffffff', invert: false,
     qr: true, qrData: 'TOTE-01', qrType: 'text', qrEcc: 'M', qrScale: 100, qrLogo: false,
     qrPass: '', qrEnc: 'WPA', qrHidden: false, qrSubject: '', qrBody: '', qrMsg: '',
     qrOrg: '', qrPhone: '', qrEmail: '',
@@ -69,7 +69,7 @@
   const defaultBulk = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', font: 'system',
-    symbol: 'none', border: 'none', copies: 1,
+    symbol: 'none', border: 'none', copies: 1, invert: false,
     qrPrefix: '', qrEcc: 'M',
     logo: false, logoId: null, logoPos: 'left', items: '',
   });
@@ -274,10 +274,10 @@
     flammable: { name: '🔥 Flammable' }, bolt: { name: '⚡ Electrical' },
     arrow: { name: '→ Arrow' }, recycle: { name: '♻ Recycle' },
   };
-  function drawSymbol(ctx, id, x, y, s) {
+  function drawSymbol(ctx, id, x, y, s, color) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = '#000'; ctx.strokeStyle = '#000';
+    ctx.fillStyle = color || '#000'; ctx.strokeStyle = color || '#000';
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     const lw = s * 0.07; ctx.lineWidth = lw;
     const P = (fn) => { ctx.beginPath(); fn(); };
@@ -485,18 +485,20 @@
         ty += heights[i];
       });
     }
-    return { wPx, hPx, wmm: lengthMm, hmm: heightMm, els };
+    return { wPx, hPx, wmm: lengthMm, hmm: heightMm, els, invert: !!spec.invert };
   }
   function drawPlan(ctx, plan, bg) {
-    ctx.fillStyle = bg || '#fff'; ctx.fillRect(0, 0, plan.wPx, plan.hPx);
+    const ink = plan.invert ? '#fff' : '#000';
+    ctx.fillStyle = plan.invert ? '#000' : (bg || '#fff');
+    ctx.fillRect(0, 0, plan.wPx, plan.hPx);
     plan.els.forEach(e => {
-      if (e.t === 'border') { ctx.strokeStyle = '#000'; ctx.lineWidth = e.lw; ctx.strokeRect(e.x, e.y, e.w, e.h); }
-      else if (e.t === 'symbol') drawSymbol(ctx, e.id, e.x, e.y, e.s);
+      if (e.t === 'border') { ctx.strokeStyle = ink; ctx.lineWidth = e.lw; ctx.strokeRect(e.x, e.y, e.w, e.h); }
+      else if (e.t === 'symbol') drawSymbol(ctx, e.id, e.x, e.y, e.s, ink);
       else if (e.t === 'logo') drawLogo(ctx, e.img, e.x, e.y, e.w, e.h);
       else if (e.t === 'qr') drawQR(ctx, e.data, e.x, e.y, e.size, e.ecc, e.centerLogo);
       else if (e.t === 'barcode') drawBarcode(ctx, e.data, e.x, e.y, e.w, e.h);
       else if (e.t === 'text') {
-        ctx.fillStyle = '#000'; ctx.textBaseline = 'top';
+        ctx.fillStyle = ink; ctx.textBaseline = 'top';
         ctx.textAlign = e.anchor === 'center' ? 'center' : 'left';
         ctx.font = fontStr(e.size, e.bold, e.font);
         ctx.fillText(e.text, e.x, e.y);
@@ -595,11 +597,12 @@
     draw(c.getContext('2d'), c.width, c.height);
     return c.toDataURL('image/png');
   }
-  function svgEl(e) {
+  function svgEl(e, ink) {
+    ink = ink || '#000';
     if (e.t === 'border')
-      return `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" fill="none" stroke="#000" stroke-width="${e.lw.toFixed(2)}"/>`;
+      return `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" fill="none" stroke="${ink}" stroke-width="${e.lw.toFixed(2)}"/>`;
     if (e.t === 'text')
-      return `<text x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" font-family="${escapeHtml((FONTS[e.font] || FONTS.system).css)}" font-size="${e.size.toFixed(1)}" font-weight="${e.bold ? 700 : 500}" fill="#000" text-anchor="${e.anchor === 'center' ? 'middle' : 'start'}" dominant-baseline="text-before-edge">${escapeHtml(e.text)}</text>`;
+      return `<text x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" font-family="${escapeHtml((FONTS[e.font] || FONTS.system).css)}" font-size="${e.size.toFixed(1)}" font-weight="${e.bold ? 700 : 500}" fill="${ink}" text-anchor="${e.anchor === 'center' ? 'middle' : 'start'}" dominant-baseline="text-before-edge">${escapeHtml(e.text)}</text>`;
     if (e.t === 'qr') {
       let s = `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.size.toFixed(2)}" height="${e.size.toFixed(2)}" fill="#fff"/>` +
         `<path d="${qrPathD(e.data, e.ecc, e.x, e.y, e.size)}" fill="#000"/>`;
@@ -613,7 +616,7 @@
     if (e.t === 'logo')
       return `<image x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" preserveAspectRatio="xMidYMid meet" href="${e.img.src}"/>`;
     if (e.t === 'symbol') {
-      const url = rasterDataURL(e.s, e.s, (c) => drawSymbol(c, e.id, 0, 0, e.s));
+      const url = rasterDataURL(e.s, e.s, (c) => drawSymbol(c, e.id, 0, 0, e.s, ink));
       return `<image x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.s.toFixed(2)}" height="${e.s.toFixed(2)}" href="${url}"/>`;
     }
     if (e.t === 'barcode') {
@@ -628,7 +631,8 @@
     const forcedLen = die ? die.l : (spec.lengthMode === 'fixed' ? clampLen(spec.lengthMm) : null);
     const plan = planLabel(spec, heightMm, forcedLen, Math.max(0, spec.marginMm ?? 2));
     const W = plan.wPx, H = plan.hPx;
-    let body = `<rect width="${W}" height="${H}" fill="#fff"/>` + plan.els.map(svgEl).join('');
+    const ink = plan.invert ? '#fff' : '#000';
+    let body = `<rect width="${W}" height="${H}" fill="${plan.invert ? '#000' : '#fff'}"/>` + plan.els.map(e => svgEl(e, ink)).join('');
     let wmm = plan.wmm, hmm = plan.hmm, vbW = W, vbH = H;
     if (spec.orient === 'v') {
       body = `<g transform="translate(0 ${W}) rotate(-90)">${body}</g>`;
@@ -673,6 +677,7 @@
     d.font = $('#d_font').value;
     d.symbol = $('#d_symbol').value;
     d.border = $('#d_border').value;
+    d.invert = $('#d_invert').checked;
     d.line1 = $('#d_line1').value;
     d.line2 = $('#d_line2').value;
     d.line3 = $('#d_line3').value;
@@ -810,6 +815,7 @@
     $('#d_logo').checked = d.logo;
     $('#d_font').value = d.font;
     $('#d_symbol').value = d.symbol || 'none'; $('#d_border').value = d.border || 'none';
+    $('#d_invert').checked = !!d.invert;
     $('#d_line1').value = d.line1; $('#d_line2').value = d.line2; $('#d_line3').value = d.line3 || '';
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
     $('#d_qr').checked = d.qr; $('#d_qrData').value = d.qrData;
@@ -903,7 +909,7 @@
         type: b.type, widthMm: b.widthMm, dieIdx: b.dieIdx, orient: b.orient,
         lengthMode: b.lengthMode, lengthMm: b.lengthMm, _index: i + 1,
         line1: f0, line2: f1, line3: '', bold: true, align: 'left', font: b.font,
-        symbol: b.symbol, border: b.border,
+        symbol: b.symbol, border: b.border, invert: b.invert,
         qr: false, qrData: '', qrType: 'text', qrEcc: b.qrEcc, qrScale: 100,
         barcode: false, bcData: '',
         logo: b.logo, logoId: b.logoId, logoPos: b.logoPos, marginMm: 2,
@@ -923,6 +929,7 @@
     b.font = $('#b_font').value;
     b.symbol = $('#b_symbol').value;
     b.border = $('#b_border').value;
+    b.invert = $('#b_invert').checked;
     b.copies = clamp(+$('#b_copies').value || 1, 1, 99);
     b.qrPrefix = $('#b_qrPrefix').value;
     b.qrEcc = $('#b_qrEcc').value;
@@ -966,6 +973,7 @@
     $('#b_font').value = b.font;
     $('#b_symbol').value = b.symbol || 'none';
     $('#b_border').value = b.border || 'none';
+    $('#b_invert').checked = !!b.invert;
     $('#b_copies').value = b.copies || 1;
     $('#b_qrPrefix').value = b.qrPrefix;
     $('#b_qrEcc').value = b.qrEcc;
@@ -1043,7 +1051,7 @@
       if (chip) applyPreset(chip.dataset.preset);
     });
     ['#b_width', '#b_die', '#b_layout', '#b_length', '#b_items',
-     '#b_font', '#b_symbol', '#b_border', '#b_copies', '#b_qrPrefix', '#b_qrEcc'].forEach(sel =>
+     '#b_font', '#b_symbol', '#b_border', '#b_invert', '#b_copies', '#b_qrPrefix', '#b_qrEcc'].forEach(sel =>
       $(sel).addEventListener('input', renderBulk));
     $$('#view-bulk [data-len]').forEach(x => x.addEventListener('click', () => {
       state.bulk.lengthMode = x.dataset.len; renderBulk();
@@ -1224,10 +1232,15 @@
 
   /* ---------------- Print queue ---------------- */
   function addToQueue(spec, name) {
-    state.queue.push({ id: uid(), name: name || spec.line1 || 'Label', spec: JSON.parse(JSON.stringify(spec)) });
+    state.queue.push({ id: uid(), name: name || spec.line1 || 'Label', copies: 1, spec: JSON.parse(JSON.stringify(spec)) });
     save(); renderQueue();
     toast(`Added to queue (${state.queue.length})`);
   }
+  // Expand the queue to a flat label list honouring per-item copies.
+  const queueLabels = () => state.queue.flatMap(it => {
+    const lab = renderLabel(it.spec);
+    return Array.from({ length: Math.max(1, it.copies || 1) }, () => lab);
+  });
   function moveQueue(id, dir) {
     const i = state.queue.findIndex(x => x.id === id);
     const j = i + dir;
@@ -1252,10 +1265,15 @@
       const row = document.createElement('div');
       row.className = 'queue-row';
       const th = document.createElement('div'); th.className = 'queue-thumb'; th.appendChild(thumbCanvas(it.spec));
-      const nm = document.createElement('div'); nm.className = 'queue-name'; nm.textContent = it.name;
+      const nm = document.createElement('div'); nm.className = 'queue-name';
+      const t = document.createElement('div'); t.textContent = it.name; nm.appendChild(t);
+      const cp = document.createElement('label'); cp.className = 'queue-copies';
+      cp.innerHTML = `×<input type="number" min="1" max="99" value="${it.copies || 1}" data-qcopies="${it.id}" inputmode="numeric"/>`;
+      nm.appendChild(cp);
       const acts = document.createElement('div'); acts.className = 'queue-acts';
       acts.innerHTML = `<button class="btn-ghost sm" data-qup="${it.id}" ${i === 0 ? 'disabled' : ''}>↑</button>` +
         `<button class="btn-ghost sm" data-qdown="${it.id}" ${i === state.queue.length - 1 ? 'disabled' : ''}>↓</button>` +
+        `<button class="btn-ghost sm" data-qdup="${it.id}">⧉</button>` +
         `<button class="btn-ghost sm" data-qdel="${it.id}">✕</button>`;
       row.append(th, nm, acts);
       list.appendChild(row);
@@ -1266,19 +1284,32 @@
     $('#queueList').addEventListener('click', e => {
       const up = e.target.closest('[data-qup]'); if (up) return moveQueue(up.dataset.qup, -1);
       const dn = e.target.closest('[data-qdown]'); if (dn) return moveQueue(dn.dataset.qdown, 1);
+      const dup = e.target.closest('[data-qdup]');
+      if (dup) {
+        const i = state.queue.findIndex(x => x.id === dup.dataset.qdup);
+        if (i >= 0) { const c = state.queue[i]; state.queue.splice(i + 1, 0, { ...c, id: uid(), spec: JSON.parse(JSON.stringify(c.spec)) }); save(); renderQueue(); }
+        return;
+      }
       const del = e.target.closest('[data-qdel]');
       if (del) { state.queue = state.queue.filter(x => x.id !== del.dataset.qdel); save(); renderQueue(); }
+    });
+    $('#queueList').addEventListener('input', e => {
+      const cp = e.target.closest('[data-qcopies]');
+      if (cp) {
+        const it = state.queue.find(x => x.id === cp.dataset.qcopies);
+        if (it) { it.copies = clamp(+cp.value || 1, 1, 99); save(); }
+      }
     });
     $('#queueClear').addEventListener('click', () => {
       if (state.queue.length && confirm('Clear the print queue?')) { state.queue = []; save(); renderQueue(); }
     });
     $('#queuePdf').addEventListener('click', async () => {
       if (!state.queue.length) return;
-      await exportPDF(state.queue.map(it => renderLabel(it.spec)), 'leitz-queue.pdf');
+      await exportPDF(queueLabels(), 'leitz-queue.pdf');
     });
     $('#queuePrint').addEventListener('click', () => {
       if (!state.queue.length) return;
-      printLabels(state.queue.map(it => renderLabel(it.spec)));
+      printLabels(queueLabels());
     });
   }
 
@@ -1505,7 +1536,23 @@
     }));
     $('#cal_reset').addEventListener('click', () => { cal.dx = 0; cal.dy = 0; cal.scale = 100; save(); syncCal(); });
     $('#cal_test').addEventListener('click', () => printLabels([buildCalTest()]));
+
+    $('#sheetBtn').addEventListener('click', exportSheet);
     updateStorageMeter();
+  }
+  // Tile copies of the current design onto an A4/Letter sheet for ordinary printers.
+  async function exportSheet() {
+    readDesign();
+    const label = renderLabel(state.design);
+    const page = $('#sheet_size').value === 'letter'
+      ? { pageWmm: 215.9, pageHmm: 279.4 } : { pageWmm: 210, pageHmm: 297 };
+    const count = clamp(+$('#sheet_count').value || 1, 1, 1000);
+    const gap = clamp(+$('#sheet_gap').value || 0, 0, 30);
+    toast('Building sheet…');
+    const blob = await window.LabelPDF.buildSheetPDF(label, count, { ...page, gapMm: gap, marginMm: 8 });
+    if (!blob) { toast('Label is too big for that page size'); return; }
+    download(blob, 'leitz-sheet.pdf');
+    toast('Sheet PDF saved');
   }
 
   /* ---------------- Service-worker update prompt ---------------- */

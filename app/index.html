@@ -161,6 +161,8 @@
           <div class="tape-swatches" id="d_tape"></div>
         </div>
 
+        <label class="chip-check block"><input type="checkbox" id="d_invert" /> Inverse (white on black)</label>
+
         <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
         <div class="field sub" id="d_qrWrap" hidden>
           <label class="field">
@@ -375,6 +377,8 @@
           </label>
         </div>
 
+        <label class="chip-check block"><input type="checkbox" id="b_invert" /> Inverse (white on black)</label>
+
         <p class="hint" style="margin-top:-2px">Tokens <code>{date}</code> and
         <code>{n}</code> work per row (<code>{n}</code> = row number).</p>
 
@@ -517,6 +521,25 @@
           <button class="btn-ghost" id="restoreBtn">⤒ Restore from file</button>
         </div>
         <p class="hint" id="storageMeter">—</p>
+
+        <h2 style="margin-top:26px">Sheet layout (ordinary printer)</h2>
+        <p>Tile copies of the <b>current design</b> onto a paper sheet for a
+        normal inkjet/laser printer (e.g. on sticker paper) — no Leitz Icon
+        needed.</p>
+        <div class="field-row">
+          <label class="field inline"><span>Page</span>
+            <select id="sheet_size">
+              <option value="a4">A4</option>
+              <option value="letter">Letter</option>
+            </select></label>
+          <label class="field inline"><span>Copies</span>
+            <input id="sheet_count" type="number" min="1" max="1000" value="24" inputmode="numeric" /></label>
+          <label class="field inline"><span>Gap (mm)</span>
+            <input id="sheet_gap" type="number" min="0" max="30" value="3" inputmode="numeric" /></label>
+        </div>
+        <div class="more-actions">
+          <button class="btn-primary" id="sheetBtn">⤓ Export sheet PDF</button>
+        </div>
 
         <h2 style="margin-top:26px">Printer calibration</h2>
         <p>If the Icon prints slightly off, nudge every label and fine-tune the
