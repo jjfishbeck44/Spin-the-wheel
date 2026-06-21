@@ -48,11 +48,18 @@
     mono: { name: 'Mono', css: '"SF Mono", Menlo, Consolas, "Roboto Mono", monospace' },
   };
 
+  // Tape colours for the preview only (print is always black on the physical tape).
+  const TAPES = [
+    { c: '#ffffff', n: 'White' }, { c: '#ffd400', n: 'Yellow' }, { c: '#ff7a1a', n: 'Orange' },
+    { c: '#e23b3b', n: 'Red' }, { c: '#33b35a', n: 'Green' }, { c: '#2e7fe0', n: 'Blue' },
+    { c: '#c7ccd1', n: 'Silver' },
+  ];
+
   const defaultDesign = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01', line3: '',
-    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none',
+    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none', tape: '#ffffff',
     qr: true, qrData: 'TOTE-01', qrType: 'text', qrEcc: 'M', qrScale: 100, qrLogo: false,
     qrPass: '', qrEnc: 'WPA', qrHidden: false, qrSubject: '', qrBody: '', qrMsg: '',
     qrOrg: '', qrPhone: '', qrEmail: '',
@@ -69,7 +76,7 @@
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
     settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 } },
-    assets: { logos: [] }, saved: [], presets: [], scanLog: [],
+    assets: { logos: [] }, saved: [], presets: [], scanLog: [], queue: [],
   });
 
   // Normalise a parsed blob into a complete state object.
@@ -80,7 +87,7 @@
       design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
       settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) } },
       assets: { logos: (p.assets && p.assets.logos) || [] },
-      saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [],
+      saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [], queue: p.queue || [],
     };
     // Migrate the old single-logo asset to the new gallery.
     if (p.assets && p.assets.logo && !s.assets.logos.length) {
@@ -480,8 +487,8 @@
     }
     return { wPx, hPx, wmm: lengthMm, hmm: heightMm, els };
   }
-  function drawPlan(ctx, plan) {
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, plan.wPx, plan.hPx);
+  function drawPlan(ctx, plan, bg) {
+    ctx.fillStyle = bg || '#fff'; ctx.fillRect(0, 0, plan.wPx, plan.hPx);
     plan.els.forEach(e => {
       if (e.t === 'border') { ctx.strokeStyle = '#000'; ctx.lineWidth = e.lw; ctx.strokeRect(e.x, e.y, e.w, e.h); }
       else if (e.t === 'symbol') drawSymbol(ctx, e.id, e.x, e.y, e.s);
@@ -496,20 +503,22 @@
       }
     });
   }
-  function composeHorizontal(spec, heightMm, forcedLen, marginMm) {
+  function composeHorizontal(spec, heightMm, forcedLen, marginMm, bg) {
     const plan = planLabel(spec, heightMm, forcedLen, marginMm);
     const canvas = document.createElement('canvas');
     canvas.width = plan.wPx; canvas.height = plan.hPx;
-    drawPlan(canvas.getContext('2d'), plan);
+    drawPlan(canvas.getContext('2d'), plan, bg);
     return { canvas, wmm: plan.wmm, hmm: plan.hmm };
   }
 
-  /* spec -> { canvas, wmm, hmm }. Handles die-cut + 90° rotation. */
-  function renderLabel(spec) {
+  /* spec -> { canvas, wmm, hmm }. Handles die-cut + 90° rotation.
+   * bg tints the label background for preview (visualising coloured tape);
+   * exports always pass white. */
+  function renderLabel(spec, bg) {
     const die = spec.type === 'diecut' ? DIECUTS[spec.dieIdx || 0] : null;
     const heightMm = die ? die.h : spec.widthMm;
     const forcedLen = die ? die.l : (spec.lengthMode === 'fixed' ? clampLen(spec.lengthMm) : null);
-    const base = composeHorizontal(spec, heightMm, forcedLen, Math.max(0, spec.marginMm ?? 2));
+    const base = composeHorizontal(spec, heightMm, forcedLen, Math.max(0, spec.marginMm ?? 2), bg);
 
     if (spec.orient === 'v') {
       const r = document.createElement('canvas');
@@ -702,11 +711,14 @@
     const badge = d.type === 'diecut' ? DIECUTS[d.dieIdx].name.split(' — ')[0] : `${d.widthMm} mm`;
     $('#cartridgeBadge').innerHTML = `${badge} · 300 dpi`;
 
-    const label = renderLabel(d);
+    const label = renderLabel(d);          // white background — used for export
     currentDesignLabel = label;
+    // Preview is tinted to visualise the chosen tape colour (not exported).
+    const tape = d.tape && d.tape !== '#ffffff' ? d.tape : null;
+    const shown = tape ? renderLabel(d, tape) : label;
     const pc = $('#previewCanvas');
-    pc.width = label.canvas.width; pc.height = label.canvas.height;
-    pc.getContext('2d').drawImage(label.canvas, 0, 0);
+    pc.width = shown.canvas.width; pc.height = shown.canvas.height;
+    pc.getContext('2d').drawImage(shown.canvas, 0, 0);
     $('#previewMeta').textContent =
       `${fmtU(label.wmm)} × ${fmtU(label.hmm)} ${unit()} · ${label.canvas.width} × ${label.canvas.height} px @ ${DPI} dpi`;
     save();
@@ -808,7 +820,14 @@
     $('#d_qrOrg').value = d.qrOrg; $('#d_qrPhone').value = d.qrPhone; $('#d_qrEmail').value = d.qrEmail;
     $('#d_barcode').checked = d.barcode; $('#d_bcData').value = d.bcData;
     $('#d_margin').value = d.marginMm;
+    renderTapeSwatches(d.tape || '#ffffff');
     $$('#designForm [data-len]').forEach(b => b.classList.toggle('is-active', b.dataset.len === d.lengthMode));
+  }
+  function renderTapeSwatches(active) {
+    const wrap = $('#d_tape');
+    if (!wrap) return;
+    wrap.innerHTML = TAPES.map(t =>
+      `<button type="button" class="tape-sw ${t.c === active ? 'is-active' : ''}" data-tape="${t.c}" title="${t.n}" style="background:${t.c}"></button>`).join('');
   }
 
   function applyTemplate(id) {
@@ -855,6 +874,10 @@
     $$('#d_logoWrap [data-pos]').forEach(b => b.addEventListener('click', () => {
       state.design.logoPos = b.dataset.pos; renderDesign();
     }));
+    $('#d_tape').addEventListener('click', e => {
+      const sw = e.target.closest('[data-tape]');
+      if (sw) { state.design.tape = sw.dataset.tape; renderDesign(); }
+    });
 
     $('#undoBtn').addEventListener('click', undo);
     $('#redoBtn').addEventListener('click', redo);
@@ -1134,30 +1157,39 @@
     switchView('design');
     toast(`Loaded “${s.name}”`);
   }
+  let savedFilter = '';
+  function thumbCanvas(spec) {
+    const label = renderLabel(spec);
+    const cv = document.createElement('canvas');
+    cv.width = label.canvas.width; cv.height = label.canvas.height;
+    cv.getContext('2d').drawImage(label.canvas, 0, 0);
+    return cv;
+  }
   function renderSaved() {
     const list = $('#savedList');
     if (!list) return;
     list.innerHTML = '';
+    const q = savedFilter.trim().toLowerCase();
+    const items = q ? state.saved.filter(s => s.name.toLowerCase().includes(q)) : state.saved;
     if (!state.saved.length) {
       list.innerHTML = '<p class="empty">No saved designs yet. Build a label on the Design tab, then tap “Save current design”.</p>';
       return;
     }
-    state.saved.forEach(s => {
+    if (!items.length) { list.innerHTML = '<p class="empty">No designs match your search.</p>'; return; }
+    items.forEach(s => {
       const card = document.createElement('div');
       card.className = 'saved-card';
       const thumb = document.createElement('div');
       thumb.className = 'saved-thumb';
-      const label = renderLabel(s.spec);
-      const cv = document.createElement('canvas');
-      cv.width = label.canvas.width; cv.height = label.canvas.height;
-      cv.getContext('2d').drawImage(label.canvas, 0, 0);
-      thumb.appendChild(cv);
+      thumb.appendChild(thumbCanvas(s.spec));
       const name = document.createElement('div');
       name.className = 'saved-name';
       name.textContent = s.name;
       const acts = document.createElement('div');
       acts.className = 'saved-acts';
       acts.innerHTML = `<button class="btn-ghost sm" data-load="${s.id}">Load</button>` +
+        `<button class="btn-ghost sm" data-queue="${s.id}">＋ Queue</button>` +
+        `<button class="btn-ghost sm" data-dup="${s.id}">Duplicate</button>` +
         `<button class="btn-ghost sm" data-ren="${s.id}">Rename</button>` +
         `<button class="btn-ghost sm" data-del="${s.id}">Delete</button>`;
       card.append(thumb, name, acts);
@@ -1166,9 +1198,18 @@
   }
   function initSaved() {
     $('#saveDesignBtn').addEventListener('click', () => { saveCurrentDesign(); renderSaved(); });
+    $('#savedSearch').addEventListener('input', e => { savedFilter = e.target.value; renderSaved(); });
     $('#savedList').addEventListener('click', e => {
       const load = e.target.closest('[data-load]');
       if (load) return loadSaved(load.dataset.load);
+      const q = e.target.closest('[data-queue]');
+      if (q) { const s = state.saved.find(x => x.id === q.dataset.queue); if (s) addToQueue(s.spec, s.name); return; }
+      const dup = e.target.closest('[data-dup]');
+      if (dup) {
+        const s = state.saved.find(x => x.id === dup.dataset.dup);
+        if (s) { state.saved.unshift({ id: uid(), name: s.name + ' copy', spec: JSON.parse(JSON.stringify(s.spec)), createdAt: Date.now() }); save(); renderSaved(); }
+        return;
+      }
       const ren = e.target.closest('[data-ren]');
       if (ren) {
         const s = state.saved.find(x => x.id === ren.dataset.ren);
@@ -1181,6 +1222,66 @@
     });
   }
 
+  /* ---------------- Print queue ---------------- */
+  function addToQueue(spec, name) {
+    state.queue.push({ id: uid(), name: name || spec.line1 || 'Label', spec: JSON.parse(JSON.stringify(spec)) });
+    save(); renderQueue();
+    toast(`Added to queue (${state.queue.length})`);
+  }
+  function moveQueue(id, dir) {
+    const i = state.queue.findIndex(x => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= state.queue.length) return;
+    const [it] = state.queue.splice(i, 1);
+    state.queue.splice(j, 0, it);
+    save(); renderQueue();
+  }
+  function renderQueue() {
+    const wrap = $('#queueWrap'), list = $('#queueList');
+    if (!list) return;
+    $('#queueCount').textContent = state.queue.length;
+    wrap.hidden = false;
+    if (!state.queue.length) {
+      list.innerHTML = '<p class="empty">Queue is empty. Add the current design here, or “＋ Queue” a saved design, to print several different labels in one run.</p>';
+      $('#queuePrint').disabled = $('#queuePdf').disabled = $('#queueClear').disabled = true;
+      return;
+    }
+    $('#queuePrint').disabled = $('#queuePdf').disabled = $('#queueClear').disabled = false;
+    list.innerHTML = '';
+    state.queue.forEach((it, i) => {
+      const row = document.createElement('div');
+      row.className = 'queue-row';
+      const th = document.createElement('div'); th.className = 'queue-thumb'; th.appendChild(thumbCanvas(it.spec));
+      const nm = document.createElement('div'); nm.className = 'queue-name'; nm.textContent = it.name;
+      const acts = document.createElement('div'); acts.className = 'queue-acts';
+      acts.innerHTML = `<button class="btn-ghost sm" data-qup="${it.id}" ${i === 0 ? 'disabled' : ''}>↑</button>` +
+        `<button class="btn-ghost sm" data-qdown="${it.id}" ${i === state.queue.length - 1 ? 'disabled' : ''}>↓</button>` +
+        `<button class="btn-ghost sm" data-qdel="${it.id}">✕</button>`;
+      row.append(th, nm, acts);
+      list.appendChild(row);
+    });
+  }
+  function initQueue() {
+    $('#queueAddCurrent').addEventListener('click', () => { readDesign(); addToQueue(state.design, state.design.line1); });
+    $('#queueList').addEventListener('click', e => {
+      const up = e.target.closest('[data-qup]'); if (up) return moveQueue(up.dataset.qup, -1);
+      const dn = e.target.closest('[data-qdown]'); if (dn) return moveQueue(dn.dataset.qdown, 1);
+      const del = e.target.closest('[data-qdel]');
+      if (del) { state.queue = state.queue.filter(x => x.id !== del.dataset.qdel); save(); renderQueue(); }
+    });
+    $('#queueClear').addEventListener('click', () => {
+      if (state.queue.length && confirm('Clear the print queue?')) { state.queue = []; save(); renderQueue(); }
+    });
+    $('#queuePdf').addEventListener('click', async () => {
+      if (!state.queue.length) return;
+      await exportPDF(state.queue.map(it => renderLabel(it.spec)), 'leitz-queue.pdf');
+    });
+    $('#queuePrint').addEventListener('click', () => {
+      if (!state.queue.length) return;
+      printLabels(state.queue.map(it => renderLabel(it.spec)));
+    });
+  }
+
   /* ---------------- Tabs ---------------- */
   function switchView(name) {
     $$('.view').forEach(v => v.classList.toggle('is-active', v.id === 'view-' + name));
@@ -1188,7 +1289,7 @@
     $('.actions').style.display = (name === 'design' || name === 'bulk') ? 'flex' : 'none';
     if (name !== 'scan') stopScan();
     if (name === 'bulk') renderBulk();
-    if (name === 'saved') renderSaved();
+    if (name === 'saved') { renderSaved(); renderQueue(); }
     if (name === 'more') updateStorageMeter();
   }
 
@@ -1351,7 +1452,7 @@
       Object.keys(logoImgs).forEach(k => delete logoImgs[k]);
       loadAllLogos(() => {
         fillDesignInputs(); fillBulkInputs(); renderDesign(); renderPresetRail();
-        renderSaved(); renderScanLog(); updateStorageMeter();
+        renderSaved(); renderQueue(); renderScanLog(); updateStorageMeter();
       });
       toast('Backup restored');
     };
@@ -1436,6 +1537,7 @@
     initBulk();
     initUnits();
     initSaved();
+    initQueue();
     initScan();
     initScanLog();
     initMore();
