@@ -97,15 +97,30 @@
 
         <label class="field">
           <span>Line 1</span>
-          <input id="d_line1" type="text" placeholder="GARAGE — SCREWS" maxlength="60" />
+          <div class="line-row">
+            <input id="d_line1" type="text" placeholder="GARAGE — SCREWS" maxlength="60" />
+            <select id="d_size1" class="size-sel" title="Line 1 size">
+              <option value="xs">XS</option><option value="s">S</option><option value="m">M</option><option value="l">L</option><option value="xl">XL</option>
+            </select>
+          </div>
         </label>
         <label class="field">
           <span>Line 2 <em>(optional)</em></span>
-          <input id="d_line2" type="text" placeholder="Bin A3 · M3–M6" maxlength="60" />
+          <div class="line-row">
+            <input id="d_line2" type="text" placeholder="Bin A3 · M3–M6" maxlength="60" />
+            <select id="d_size2" class="size-sel" title="Line 2 size">
+              <option value="xs">XS</option><option value="s">S</option><option value="m">M</option><option value="l">L</option><option value="xl">XL</option>
+            </select>
+          </div>
         </label>
         <label class="field">
           <span>Line 3 <em>(optional)</em></span>
-          <input id="d_line3" type="text" placeholder="{date} · updated" maxlength="60" />
+          <div class="line-row">
+            <input id="d_line3" type="text" placeholder="{date} · updated" maxlength="60" />
+            <select id="d_size3" class="size-sel" title="Line 3 size">
+              <option value="xs">XS</option><option value="s">S</option><option value="m">M</option><option value="l">L</option><option value="xl">XL</option>
+            </select>
+          </div>
         </label>
         <p class="hint">Tokens: <code>{date}</code>, <code>{time}</code>, and
         <code>{n}</code> (or <code>{n:3}</code> for 001) work in text and the QR.</p>
@@ -471,6 +486,11 @@
           <button class="btn-ghost" id="scanPhotoBtn">Scan a photo</button>
         </div>
         <div class="scan-result" id="scanResult" hidden></div>
+
+        <div class="paste-row">
+          <input id="pasteLink" type="text" placeholder="Paste a share link…" />
+          <button type="button" class="btn-ghost sm" id="pasteImport">Import</button>
+        </div>
 
         <div class="scan-log-wrap" id="scanLogWrap" hidden>
           <div class="scan-log-head">

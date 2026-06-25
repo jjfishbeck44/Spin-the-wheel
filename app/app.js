@@ -59,6 +59,7 @@
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01', line3: '',
+    size1: 'xl', size2: 's', size3: 's',
     bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none', tape: '#ffffff', invert: false,
     qr: true, qrData: 'TOTE-01', qrType: 'text', qrEcc: 'M', qrScale: 100, qrLogo: false,
     qrPass: '', qrEnc: 'WPA', qrHidden: false, qrSubject: '', qrBody: '', qrMsg: '',
@@ -238,17 +239,22 @@
   // Cap auto text height so one long line doesn't create a metre-long label.
   const MAX_FONT_PX = mm(26);
 
-  function fitFont(lines, boxW, boxH, bold, font) {
-    let lo = 6, hi = Math.min(Math.floor(boxH), MAX_FONT_PX), best = lo;
+  // Per-line size weights (relative to the base font found by the fitter).
+  const SIZES = { xs: 0.4, s: 0.55, m: 0.72, l: 0.88, xl: 1.0 };
+  const sizeW = key => SIZES[key] || SIZES.s;
+
+  // weights[i] scales line i; the largest weight reaches the base font size.
+  function fitFont(lines, boxW, boxH, bold, font, weights) {
+    const maxW = Math.max(...weights);
+    let lo = 6, hi = Math.min(Math.floor(boxH / Math.max(0.2, maxW)), MAX_FONT_PX), best = 6;
     while (lo <= hi) {
       const f = (lo + hi) >> 1;
-      const f2 = Math.round(f * 0.58);
       let widest = 0, totalH = 0;
       lines.forEach((ln, i) => {
-        const fs = i === 0 ? f : f2;
+        const fs = Math.max(4, Math.round(f * weights[i]));
         scratch.font = fontStr(fs, bold, font);
         widest = Math.max(widest, scratch.measureText(ln).width);
-        totalH += i === 0 ? fs * 1.16 : fs * 1.3;
+        totalH += fs * (i === 0 ? 1.16 : 1.3);
       });
       if (widest <= boxW && totalH <= boxH) { best = f; lo = f + 1; }
       else hi = f - 1;
@@ -415,7 +421,10 @@
   // Compute a layout plan (positions only) shared by the canvas + SVG renderers.
   function planLabel(spec, heightMm, forcedLen, marginMm) {
     const idx = spec._index || 1;
-    const lines = [spec.line1, spec.line2, spec.line3].map(l => applyTokens(l, idx)).filter(Boolean);
+    const SLOTS = [['line1', 'size1', 'xl'], ['line2', 'size2', 's'], ['line3', 'size3', 's']];
+    const raw = SLOTS.map(([lk, sk, def]) => ({ t: applyTokens(spec[lk], idx), w: sizeW(spec[sk] || def) })).filter(x => x.t);
+    const lines = raw.map(x => x.t);
+    const lineW = raw.map(x => x.w);
     const hasText = lines.length > 0;
     const hPx = mm(heightMm), mPx = mm(marginMm), innerH = hPx - 2 * mPx, gap = mm(2.5);
     const logoImage = spec.logo ? getLogoImg(spec.logoId) : null;
@@ -432,13 +441,11 @@
       const qrW = spec.qr ? innerH * clamp((spec.qrScale ?? 100) / 100, 0.4, 1) : 0;
       let textW = 0;
       if (hasText) {
-        const probe = Math.min(MAX_FONT_PX, Math.round(innerH * (lines[1] ? 0.5 : 0.66)));
-        scratch.font = fontStr(probe, spec.bold, spec.font);
-        textW = scratch.measureText(lines[0]).width;
-        for (let i = 1; i < lines.length; i++) {
-          scratch.font = fontStr(Math.round(probe * 0.58), spec.bold, spec.font);
-          textW = Math.max(textW, scratch.measureText(lines[i]).width);
-        }
+        const probe = Math.min(MAX_FONT_PX, Math.round(innerH * 0.62));
+        lines.forEach((ln, i) => {
+          scratch.font = fontStr(Math.max(4, Math.round(probe * lineW[i])), spec.bold, spec.font);
+          textW = Math.max(textW, scratch.measureText(ln).width);
+        });
       }
       let lp = (2 * mPx + (symW ? symW + gap : 0) + (logoW ? logoW + gap : 0) + textW + (qrW ? qrW + gap : 0) + mm(4)) / PX;
       if (spec.barcode) lp = Math.max(lp, 55);
@@ -473,15 +480,15 @@
     }
     if (hasText && x1 - x0 > 4) {
       const boxW = x1 - x0, boxH = y1 - y0;
-      const f = fitFont(lines, boxW, boxH, spec.bold, spec.font);
-      const f2 = Math.round(f * 0.58);
-      let totalH = 0;
-      const heights = lines.map((ln, i) => { const h = i === 0 ? f * 1.16 : f2 * 1.3; totalH += h; return h; });
+      const f = fitFont(lines, boxW, boxH, spec.bold, spec.font, lineW);
+      const sizes = lineW.map(w => Math.max(4, Math.round(f * w)));
+      const heights = sizes.map((sz, i) => sz * (i === 0 ? 1.16 : 1.3));
+      const totalH = heights.reduce((a, b) => a + b, 0);
       let ty = y0 + (boxH - totalH) / 2;
       const anchor = spec.align === 'center' ? 'center' : 'left';
       const tx = spec.align === 'center' ? x0 + boxW / 2 : x0;
       lines.forEach((ln, i) => {
-        els.push({ t: 'text', text: ln, size: i === 0 ? f : f2, x: tx, y: ty, anchor, bold: spec.bold, font: spec.font });
+        els.push({ t: 'text', text: ln, size: sizes[i], x: tx, y: ty, anchor, bold: spec.bold, font: spec.font });
         ty += heights[i];
       });
     }
@@ -672,16 +679,37 @@
     drawQR(cv.getContext('2d'), link, 0, 0, size, 'M');
     $('#shareDialog').showModal();
   }
+  // Parse a #design= payload string into a design spec (or null).
+  function specFromPayload(payload) {
+    try {
+      const spec = JSON.parse(b64urlDec(payload));
+      if (!spec || typeof spec !== 'object') return null;
+      return { ...defaultDesign(), ...spec, logo: false, logoId: null };
+    } catch (e) { return null; }
+  }
   function importSharedFromHash() {
     const m = (location.hash || '').match(/design=([^&]+)/);
     if (!m) return false;
-    try {
-      const spec = JSON.parse(b64urlDec(m[1]));
-      state.design = { ...defaultDesign(), ...spec, logo: false, logoId: null };
-      history.replaceState(null, '', location.pathname + location.search);
-      return true;
-    } catch (e) { return false; }
+    const spec = specFromPayload(m[1]);
+    if (!spec) return false;
+    state.design = spec;
+    history.replaceState(null, '', location.pathname + location.search);
+    return true;
   }
+  // Load a design from a pasted/scanned share link or raw payload.
+  function importShareLink(text) {
+    const t = (text || '').trim();
+    const m = t.match(/design=([^&\s]+)/);
+    const spec = specFromPayload(m ? m[1] : t);
+    if (!spec) { toast('Not a Label Studio share link'); return false; }
+    state.design = spec;
+    fillDesignInputs();
+    renderDesign();
+    switchView('design');
+    toast('Design loaded from link');
+    return true;
+  }
+  const isShareLink = s => /design=[A-Za-z0-9\-_]+/.test(s || '');
 
   /* ---------------- Format control wiring (shared) ---------------- */
   // Populate a continuous-width <select> and die-cut <select>.
@@ -718,6 +746,9 @@
     d.line1 = $('#d_line1').value;
     d.line2 = $('#d_line2').value;
     d.line3 = $('#d_line3').value;
+    d.size1 = $('#d_size1').value;
+    d.size2 = $('#d_size2').value;
+    d.size3 = $('#d_size3').value;
     d.bold = $('#d_bold').checked;
     d.align = $('#d_align').value;
     d.qr = $('#d_qr').checked;
@@ -854,6 +885,7 @@
     $('#d_symbol').value = d.symbol || 'none'; $('#d_border').value = d.border || 'none';
     $('#d_invert').checked = !!d.invert;
     $('#d_line1').value = d.line1; $('#d_line2').value = d.line2; $('#d_line3').value = d.line3 || '';
+    $('#d_size1').value = d.size1 || 'xl'; $('#d_size2').value = d.size2 || 's'; $('#d_size3').value = d.size3 || 's';
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
     $('#d_qr').checked = d.qr; $('#d_qrData').value = d.qrData;
     $('#d_qrType').value = d.qrType; $('#d_qrEcc').value = d.qrEcc;
@@ -1430,16 +1462,19 @@
     if (navigator.vibrate) navigator.vibrate(60);
     const box = $('#scanResult');
     const isUrl = /^https?:\/\//i.test(res.value);
+    const isShare = isShareLink(res.value);
     box.hidden = false;
     box.innerHTML = `<div class="scan-fmt">✓ ${escapeHtml(String(res.format).replace(/_/g, ' '))}</div>
       <div class="scan-val"></div>
       <div class="scan-acts">
-        ${isUrl ? '<a class="btn-primary" id="scanOpen" target="_blank" rel="noopener">Open link</a>' : ''}
+        ${isShare ? '<button class="btn-primary" id="scanLoad">Load design</button>' : ''}
+        ${isUrl && !isShare ? '<a class="btn-primary" id="scanOpen" target="_blank" rel="noopener">Open link</a>' : ''}
         <button class="btn-ghost" id="scanAdd">Add to list</button>
         <button class="btn-ghost" id="scanAgain">Scan again</button>
       </div>`;
     box.querySelector('.scan-val').textContent = res.value;
-    if (isUrl) $('#scanOpen').href = res.value;
+    if (isUrl && !isShare) $('#scanOpen').href = res.value;
+    if (isShare) $('#scanLoad').addEventListener('click', () => { box.hidden = true; importShareLink(res.value); });
     $('#scanAdd').addEventListener('click', () => { addScan(res.value); box.hidden = true; startScan(); });
     $('#scanAgain').addEventListener('click', () => { box.hidden = true; startScan(); });
   }
@@ -1534,6 +1569,9 @@
     $('#scanStop').addEventListener('click', () => { stopScan(); $('#scanHint').textContent = 'Camera stopped.'; });
     $('#scanFile').addEventListener('change', e => { scanPhoto(e.target.files[0]); e.target.value = ''; });
     $('#scanPhotoBtn').addEventListener('click', () => $('#scanFile').click());
+    $('#pasteImport').addEventListener('click', () => {
+      if (importShareLink($('#pasteLink').value)) $('#pasteLink').value = '';
+    });
   }
 
   /* ---------------- More tab: backup, storage, calibration ---------------- */
