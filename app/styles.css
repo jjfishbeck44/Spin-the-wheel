@@ -57,6 +57,17 @@ body {
 
 .logo-actions { display: flex; gap: 8px; }
 
+/* Per-line size select */
+.line-row { display: flex; gap: 8px; }
+.line-row input { flex: 1; min-width: 0; }
+.size-sel { flex: 0 0 auto; width: 64px; font-size: 13px; padding: 11px 6px; }
+
+/* Paste-a-link import (scan tab) */
+.paste-row { display: flex; gap: 8px; margin-top: 14px; }
+.paste-row input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); font-size: 14px; padding: 10px 12px; border-radius: 10px; }
+.paste-row input:focus { outline: 2px solid var(--red); border-color: var(--red); }
+
 /* Saved folders */
 .folder-rail { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; scrollbar-width: none; }
 .folder-rail::-webkit-scrollbar { display: none; }

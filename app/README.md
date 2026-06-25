@@ -36,7 +36,10 @@ step, no backend — your designs stay on your device.
   from the **Saved** tab (stored on-device); **search**, **folders**,
   **duplicate**, rename or delete saved designs and batch presets.
 - **Share a design** — generate a compact **link + QR**; opening it on another
-  device loads the design (logos stay local).
+  device loads the design (logos stay local). On the receiving device you can
+  **scan the share QR** or **paste the link** in the Scan tab to import it.
+- **Per-line text size** — set each line to XS–XL independently (the auto-fit
+  scales them together).
 - **Inverse mode** — white-on-black labels for high-visibility warnings; QR and
   barcodes keep a white patch so they still scan.
 - **Print queue** — collect several *different* labels (the current design or
