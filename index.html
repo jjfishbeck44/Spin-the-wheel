@@ -1,86 +1,121 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spin the Wheel</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f7f9fc;
-        }
-        #wheel {
-            width: 300px;
-            height: 300px;
-            border: 5px solid #000;
-            border-radius: 50%;
-            margin: 20px auto;
-            background: conic-gradient(
-                #FFD700 0% 20%,
-                #FF4500 20% 40%,
-                #1E90FF 40% 60%,
-                #32CD32 60% 80%,
-                #FF69B4 80% 100%
-            );
-            position: relative;
-        }
-        #pointer {
-            width: 0;
-            height: 0;
-            border-left: 15px solid transparent;
-            border-right: 15px solid transparent;
-            border-bottom: 25px solid red;
-            margin: 0 auto;
-            position: absolute;
-            top: -25px;
-            left: 135px;
-        }
-        #spinButton {
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        #spinButton:hover {
-            background-color: #0056b3;
-        }
-        #result {
-            margin-top: 20px;
-            font-size: 24px;
-            font-weight: bold;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Leitz Label Studio — a label maker for the Leitz Icon</title>
+  <meta name="description" content="A fast, offline, installable web app for designing and bulk-printing labels for the Leitz Icon label maker. QR codes, barcodes, templates, and more." />
+  <meta name="theme-color" content="#C80016" />
+  <link rel="icon" type="image/png" href="app/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="app/icons/apple-touch-icon.png" />
+  <style>
+    :root {
+      --red: #C80016; --red-bright: #F51A2E; --ink: #1c1d22; --dim: #6a6e77;
+      --bg: #f6f7f9; --card: #fff; --line: #e5e7eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #f1f2f5; --dim: #a0a4ad; --bg: #101116; --card: #1b1d24; --line: #2b2d36; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; line-height: 1.55;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+
+    .hero {
+      background: linear-gradient(135deg, var(--red-bright), var(--red));
+      color: #fff; padding: calc(env(safe-area-inset-top) + 56px) 0 60px; text-align: center;
+    }
+    .logo {
+      width: 92px; height: 92px; border-radius: 22px; display: block; margin: 0 auto 22px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    }
+    .hero h1 { margin: 0 0 8px; font-size: clamp(28px, 7vw, 40px); font-weight: 800; letter-spacing: -.5px; }
+    .hero p { margin: 0 auto; max-width: 30ch; font-size: 17px; opacity: .92; }
+    .cta {
+      display: inline-block; margin-top: 28px; background: #fff; color: var(--red);
+      font-size: 18px; font-weight: 800; text-decoration: none; padding: 15px 34px; border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.22); transition: transform .08s ease;
+    }
+    .cta:active { transform: scale(.97); }
+    .sub-cta { display: block; margin-top: 14px; color: #fff; opacity: .85; font-size: 14px; text-decoration: none; }
+
+    section { padding: 44px 0; }
+    h2 { font-size: 22px; margin: 0 0 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    .feat {
+      background: var(--card); border: 1px solid var(--line); border-radius: 15px; padding: 16px 16px 18px;
+    }
+    .feat .ico { font-size: 24px; }
+    .feat h3 { margin: 8px 0 4px; font-size: 16px; }
+    .feat p { margin: 0; color: var(--dim); font-size: 14px; }
+
+    .steps { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 8px 22px; }
+    .steps ol { margin: 0; padding: 16px 0 16px 20px; }
+    .steps li { margin: 10px 0; }
+    .note {
+      background: rgba(46,204,113,.12); border-left: 3px solid #2ECC71; border-radius: 8px;
+      padding: 12px 14px; font-size: 14px; margin-top: 16px;
+    }
+
+    footer { padding: 30px 0 46px; color: var(--dim); font-size: 13px; text-align: center; }
+    footer a { color: var(--dim); }
+    .center { text-align: center; }
+    .btn-line {
+      display: inline-block; margin-top: 8px; border: 1px solid var(--line); color: var(--ink);
+      text-decoration: none; padding: 12px 26px; border-radius: 999px; font-weight: 700;
+    }
+  </style>
 </head>
 <body>
-    <h1>Spin the Wheel for Your Discount!</h1>
-    <div id="pointer"></div>
-    <div id="wheel"></div>
-    <button id="spinButton">Spin the Wheel</button>
-    <div id="result"></div>
+  <header class="hero">
+    <div class="wrap">
+      <img class="logo" src="app/icons/icon-512.png" alt="Leitz Label Studio icon" />
+      <h1>Leitz&nbsp;Label&nbsp;Studio</h1>
+      <p>Design and bulk-print labels for your Leitz&nbsp;Icon — fast, offline, and right from your phone.</p>
+      <a class="cta" href="app/">Open the app →</a>
+      <a class="sub-cta" href="app/">or add it to your Home Screen for offline use</a>
+    </div>
+  </header>
 
-    <script>
-        const spinButton = document.getElementById("spinButton");
-        const resultDiv = document.getElementById("result");
+  <section>
+    <div class="wrap">
+      <h2>What it does</h2>
+      <div class="grid">
+        <div class="feat"><div class="ico">🏷️</div><h3>True-to-size labels</h3><p>Continuous &amp; die-cut cartridges at the Icon's native 300&nbsp;dpi — prints 1:1.</p></div>
+        <div class="feat"><div class="ico">🔳</div><h3>QR &amp; barcodes</h3><p>Links, Wi-Fi, contact cards, Code&nbsp;128 — with error-correction and centre logos.</p></div>
+        <div class="feat"><div class="ico">▤</div><h3>Bulk &amp; CSV</h3><p>Sequences, CSV import with column mapping, per-row serials and copies.</p></div>
+        <div class="feat"><div class="ico">🎨</div><h3>Design tools</h3><p>Fonts, per-line sizes, symbols, borders, logos, inverse mode and tape colours.</p></div>
+        <div class="feat"><div class="ico">⛶</div><h3>Scan &amp; verify</h3><p>Check a printed label scans, capture scans to CSV, or import a shared design.</p></div>
+        <div class="feat"><div class="ico">📄</div><h3>Export anywhere</h3><p>PDF, PNG, vector SVG, or an A4/Letter sheet for an ordinary printer.</p></div>
+      </div>
+    </div>
+  </section>
 
-        spinButton.addEventListener("click", () => {
-            const discount = Math.floor(Math.random() * 9 + 1) * 10; // Random 10% to 90%
-            const rotation = Math.random() * 360; // Random rotation for the wheel
-            const wheel = document.getElementById("wheel");
+  <section style="padding-top:0">
+    <div class="wrap">
+      <h2>Install it in seconds</h2>
+      <div class="steps">
+        <ol>
+          <li>Tap <b>Open the app</b> above (or open this page in <b>Safari</b> on iPhone).</li>
+          <li>Tap the <b>Share</b> icon → <b>Add to Home Screen</b>.</li>
+          <li>Launch <b>Label&nbsp;Studio</b> — it runs full-screen and works offline.</li>
+        </ol>
+      </div>
+      <div class="note">🔒 Everything stays on your device — nothing you type is uploaded. Print from the app to the official Leitz&nbsp;Icon software at 100% / actual size.</div>
+      <div class="center" style="margin-top:26px">
+        <a class="cta" href="app/">Open the app →</a>
+      </div>
+    </div>
+  </section>
 
-            // Apply rotation animation
-            wheel.style.transition = "transform 3s ease-out";
-            wheel.style.transform = `rotate(${rotation + 360 * 3}deg)`; // Add extra spins
-
-            setTimeout(() => {
-                resultDiv.textContent = `You got ${discount}% off!`;
-                wheel.style.transition = "none"; // Reset transition
-                wheel.style.transform = `rotate(${rotation % 360}deg)`; // Set final rotation
-            }, 3000); // Delay to match animation
-        });
-    </script>
+  <footer>
+    <div class="wrap">
+      <p>Not affiliated with or endorsed by Leitz&nbsp;/&nbsp;Esselte. “Leitz” and “Leitz Icon” are trademarks of their respective owner.</p>
+      <p><a href="spin.html">Looking for the old Spin-the-Wheel demo?</a></p>
+    </div>
+  </footer>
 </body>
 </html>
