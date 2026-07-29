@@ -48,6 +48,21 @@
     mono: { name: 'Mono', css: '"SF Mono", Menlo, Consolas, "Roboto Mono", monospace' },
   };
 
+  // App UI accent themes (chrome only — labels always print black).
+  const ACCENTS = [
+    { n: 'Leitz red', c: '#C80016', b: '#F51A2E' },
+    { n: 'Blue', c: '#1E6FE0', b: '#3B8BFF' },
+    { n: 'Green', c: '#1E9E57', b: '#2ECC71' },
+    { n: 'Orange', c: '#E8730E', b: '#FF9127' },
+    { n: 'Purple', c: '#7A3FD0', b: '#9B59F0' },
+    { n: 'Graphite', c: '#3A3F47', b: '#565C66' },
+  ];
+  function applyAccent(a) {
+    const c = (a && a.c) || '#C80016', b = (a && a.b) || '#F51A2E';
+    document.documentElement.style.setProperty('--red', c);
+    document.documentElement.style.setProperty('--red-bright', b);
+  }
+
   // Tape colours for the preview only (print is always black on the physical tape).
   const TAPES = [
     { c: '#ffffff', n: 'White' }, { c: '#ffd400', n: 'Yellow' }, { c: '#ff7a1a', n: 'Orange' },
@@ -60,7 +75,7 @@
     lengthMode: 'auto', lengthMm: 100,
     line1: 'GARAGE — POWER TOOLS', line2: 'Tote 01', line3: '',
     size1: 'xl', size2: 's', size3: 's',
-    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none', tape: '#ffffff', invert: false,
+    bold: true, align: 'left', font: 'system', symbol: 'none', border: 'none', tape: '#ffffff', invert: false, rtl: false,
     qr: true, qrData: 'TOTE-01', qrType: 'text', qrEcc: 'M', qrScale: 100, qrLogo: false,
     qrPass: '', qrEnc: 'WPA', qrHidden: false, qrSubject: '', qrBody: '', qrMsg: '',
     qrOrg: '', qrPhone: '', qrEmail: '',
@@ -70,13 +85,13 @@
   const defaultBulk = () => ({
     type: 'continuous', widthMm: 88, dieIdx: 0, orient: 'h',
     lengthMode: 'auto', lengthMm: 100, layout: 'text-qr', font: 'system',
-    symbol: 'none', border: 'none', copies: 1, invert: false,
+    symbol: 'none', border: 'none', copies: 1, invert: false, rtl: false,
     qrPrefix: '', qrEcc: 'M',
     logo: false, logoId: null, logoPos: 'left', items: '',
   });
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
-    settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 } },
+    settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 }, accent: { c: '#C80016', b: '#F51A2E' } },
     assets: { logos: [] }, saved: [], presets: [], scanLog: [], queue: [],
   });
 
@@ -86,7 +101,7 @@
     if (!p || !p.design) return d;
     const s = {
       design: { ...d.design, ...p.design }, bulk: { ...d.bulk, ...p.bulk },
-      settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) } },
+      settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) }, accent: { ...d.settings.accent, ...(p.settings && p.settings.accent) } },
       assets: { logos: (p.assets && p.assets.logos) || [] },
       saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [], queue: p.queue || [],
     };
@@ -458,7 +473,9 @@
     if (spec.border && spec.border !== 'none') {
       const bw = spec.border === 'thick' ? mm(1.4) : mm(0.6);
       const inset = bw / 2 + mm(0.6);
-      els.push({ t: 'border', x: inset, y: inset, w: wPx - 2 * inset, h: hPx - 2 * inset, lw: bw });
+      els.push({ t: 'border', x: inset, y: inset, w: wPx - 2 * inset, h: hPx - 2 * inset, lw: bw,
+        dash: spec.border === 'dashed' ? [mm(2), mm(1.6)] : null,
+        radius: spec.border === 'rounded' ? mm(4) : 0 });
       const pad = bw + mm(1.2); x0 += pad; y0 += pad; x1 -= pad; y1 -= pad;
     }
     const innerHd = y1 - y0;
@@ -485,10 +502,12 @@
       const heights = sizes.map((sz, i) => sz * (i === 0 ? 1.16 : 1.3));
       const totalH = heights.reduce((a, b) => a + b, 0);
       let ty = y0 + (boxH - totalH) / 2;
-      const anchor = spec.align === 'center' ? 'center' : 'left';
-      const tx = spec.align === 'center' ? x0 + boxW / 2 : x0;
+      const rtl = !!spec.rtl;
+      // In RTL, "left"-aligned text anchors to the right edge (reading start).
+      const anchor = spec.align === 'center' ? 'center' : (rtl ? 'right' : 'left');
+      const tx = spec.align === 'center' ? x0 + boxW / 2 : (rtl ? x1 : x0);
       lines.forEach((ln, i) => {
-        els.push({ t: 'text', text: ln, size: sizes[i], x: tx, y: ty, anchor, bold: spec.bold, font: spec.font });
+        els.push({ t: 'text', text: ln, size: sizes[i], x: tx, y: ty, anchor, rtl, bold: spec.bold, font: spec.font });
         ty += heights[i];
       });
     }
@@ -499,16 +518,24 @@
     ctx.fillStyle = plan.invert ? '#000' : (bg || '#fff');
     ctx.fillRect(0, 0, plan.wPx, plan.hPx);
     plan.els.forEach(e => {
-      if (e.t === 'border') { ctx.strokeStyle = ink; ctx.lineWidth = e.lw; ctx.strokeRect(e.x, e.y, e.w, e.h); }
+      if (e.t === 'border') {
+        ctx.strokeStyle = ink; ctx.lineWidth = e.lw;
+        ctx.setLineDash(e.dash || []);
+        if (e.radius && ctx.roundRect) { ctx.beginPath(); ctx.roundRect(e.x, e.y, e.w, e.h, e.radius); ctx.stroke(); }
+        else ctx.strokeRect(e.x, e.y, e.w, e.h);
+        ctx.setLineDash([]);
+      }
       else if (e.t === 'symbol') drawSymbol(ctx, e.id, e.x, e.y, e.s, ink);
       else if (e.t === 'logo') drawLogo(ctx, e.img, e.x, e.y, e.w, e.h);
       else if (e.t === 'qr') drawQR(ctx, e.data, e.x, e.y, e.size, e.ecc, e.centerLogo);
       else if (e.t === 'barcode') drawBarcode(ctx, e.data, e.x, e.y, e.w, e.h);
       else if (e.t === 'text') {
         ctx.fillStyle = ink; ctx.textBaseline = 'top';
-        ctx.textAlign = e.anchor === 'center' ? 'center' : 'left';
+        ctx.textAlign = e.anchor === 'center' ? 'center' : (e.anchor === 'right' ? 'right' : 'left');
+        ctx.direction = e.rtl ? 'rtl' : 'ltr';
         ctx.font = fontStr(e.size, e.bold, e.font);
         ctx.fillText(e.text, e.x, e.y);
+        ctx.direction = 'ltr';
       }
     });
   }
@@ -606,10 +633,16 @@
   }
   function svgEl(e, ink) {
     ink = ink || '#000';
-    if (e.t === 'border')
-      return `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}" fill="none" stroke="${ink}" stroke-width="${e.lw.toFixed(2)}"/>`;
-    if (e.t === 'text')
-      return `<text x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" font-family="${escapeHtml((FONTS[e.font] || FONTS.system).css)}" font-size="${e.size.toFixed(1)}" font-weight="${e.bold ? 700 : 500}" fill="${ink}" text-anchor="${e.anchor === 'center' ? 'middle' : 'start'}" dominant-baseline="text-before-edge">${escapeHtml(e.text)}</text>`;
+    if (e.t === 'border') {
+      const dash = e.dash ? ` stroke-dasharray="${e.dash.map(d => d.toFixed(1)).join(' ')}"` : '';
+      const rx = e.radius ? ` rx="${e.radius.toFixed(2)}"` : '';
+      return `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.w.toFixed(2)}" height="${e.h.toFixed(2)}"${rx} fill="none" stroke="${ink}" stroke-width="${e.lw.toFixed(2)}"${dash}/>`;
+    }
+    if (e.t === 'text') {
+      const anchor = e.anchor === 'center' ? 'middle' : (e.anchor === 'right' ? 'end' : 'start');
+      const dir = e.rtl ? ' direction="rtl"' : '';
+      return `<text x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}"${dir} font-family="${escapeHtml((FONTS[e.font] || FONTS.system).css)}" font-size="${e.size.toFixed(1)}" font-weight="${e.bold ? 700 : 500}" fill="${ink}" text-anchor="${anchor}" dominant-baseline="text-before-edge">${escapeHtml(e.text)}</text>`;
+    }
     if (e.t === 'qr') {
       let s = `<rect x="${e.x.toFixed(2)}" y="${e.y.toFixed(2)}" width="${e.size.toFixed(2)}" height="${e.size.toFixed(2)}" fill="#fff"/>` +
         `<path d="${qrPathD(e.data, e.ecc, e.x, e.y, e.size)}" fill="#000"/>`;
@@ -743,6 +776,7 @@
     d.symbol = $('#d_symbol').value;
     d.border = $('#d_border').value;
     d.invert = $('#d_invert').checked;
+    d.rtl = $('#d_rtl').checked;
     d.line1 = $('#d_line1').value;
     d.line2 = $('#d_line2').value;
     d.line3 = $('#d_line3').value;
@@ -884,6 +918,7 @@
     $('#d_font').value = d.font;
     $('#d_symbol').value = d.symbol || 'none'; $('#d_border').value = d.border || 'none';
     $('#d_invert').checked = !!d.invert;
+    $('#d_rtl').checked = !!d.rtl;
     $('#d_line1').value = d.line1; $('#d_line2').value = d.line2; $('#d_line3').value = d.line3 || '';
     $('#d_size1').value = d.size1 || 'xl'; $('#d_size2').value = d.size2 || 's'; $('#d_size3').value = d.size3 || 's';
     $('#d_bold').checked = d.bold; $('#d_align').value = d.align;
@@ -986,7 +1021,7 @@
         type: b.type, widthMm: b.widthMm, dieIdx: b.dieIdx, orient: b.orient,
         lengthMode: b.lengthMode, lengthMm: b.lengthMm, _index: i + 1,
         line1: f0, line2: f1, line3: '', bold: true, align: 'left', font: b.font,
-        symbol: b.symbol, border: b.border, invert: b.invert,
+        symbol: b.symbol, border: b.border, invert: b.invert, rtl: b.rtl,
         qr: false, qrData: '', qrType: 'text', qrEcc: b.qrEcc, qrScale: 100,
         barcode: false, bcData: '',
         logo: b.logo, logoId: b.logoId, logoPos: b.logoPos, marginMm: 2,
@@ -1007,6 +1042,7 @@
     b.symbol = $('#b_symbol').value;
     b.border = $('#b_border').value;
     b.invert = $('#b_invert').checked;
+    b.rtl = $('#b_rtl').checked;
     b.copies = clamp(+$('#b_copies').value || 1, 1, 99);
     b.qrPrefix = $('#b_qrPrefix').value;
     b.qrEcc = $('#b_qrEcc').value;
@@ -1051,6 +1087,7 @@
     $('#b_symbol').value = b.symbol || 'none';
     $('#b_border').value = b.border || 'none';
     $('#b_invert').checked = !!b.invert;
+    $('#b_rtl').checked = !!b.rtl;
     $('#b_copies').value = b.copies || 1;
     $('#b_qrPrefix').value = b.qrPrefix;
     $('#b_qrEcc').value = b.qrEcc;
@@ -1128,7 +1165,7 @@
       if (chip) applyPreset(chip.dataset.preset);
     });
     ['#b_width', '#b_die', '#b_layout', '#b_length', '#b_items',
-     '#b_font', '#b_symbol', '#b_border', '#b_invert', '#b_copies', '#b_qrPrefix', '#b_qrEcc'].forEach(sel =>
+     '#b_font', '#b_symbol', '#b_border', '#b_invert', '#b_rtl', '#b_copies', '#b_qrPrefix', '#b_qrEcc'].forEach(sel =>
       $(sel).addEventListener('input', renderBulk));
     $$('#view-bulk [data-len]').forEach(x => x.addEventListener('click', () => {
       state.bulk.lengthMode = x.dataset.len; renderBulk();
@@ -1595,6 +1632,7 @@
       loadAllLogos(() => {
         fillDesignInputs(); fillBulkInputs(); renderDesign(); renderPresetRail();
         renderSaved(); renderQueue(); renderScanLog(); updateStorageMeter();
+        applyAccent(state.settings.accent); renderAccentSwatches();
       });
       toast('Backup restored');
     };
@@ -1631,10 +1669,24 @@
     x.fillText('ALIGN 88 × 40 mm', c.width / 2, c.height / 2 - mm(8));
     return { canvas: c, wmm, hmm };
   }
+  function renderAccentSwatches() {
+    const wrap = $('#accentSwatches'); if (!wrap) return;
+    const active = (state.settings.accent || {}).c;
+    wrap.innerHTML = ACCENTS.map(a =>
+      `<button type="button" class="tape-sw ${a.c === active ? 'is-active' : ''}" data-accent="${a.c}" title="${a.n}" style="background:${a.c}"></button>`).join('');
+  }
   function initMore() {
     $('#backupBtn').addEventListener('click', exportBackup);
     $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
     $('#restoreFile').addEventListener('change', e => { importBackup(e.target.files[0]); e.target.value = ''; });
+
+    renderAccentSwatches();
+    $('#accentSwatches').addEventListener('click', e => {
+      const sw = e.target.closest('[data-accent]');
+      if (!sw) return;
+      const a = ACCENTS.find(x => x.c === sw.dataset.accent) || ACCENTS[0];
+      state.settings.accent = { c: a.c, b: a.b }; save(); applyAccent(a); renderAccentSwatches();
+    });
 
     const cal = state.settings.cal;
     const syncCal = () => {
@@ -1691,6 +1743,7 @@
   }
 
   function init() {
+    applyAccent(state.settings.accent);
     initDesign();
     initBulk();
     initUnits();
