@@ -38,6 +38,9 @@ step, no backend — your designs stay on your device.
 - **Share a design** — generate a compact **link + QR**; opening it on another
   device loads the design (logos stay local). On the receiving device you can
   **scan the share QR** or **paste the link** in the Scan tab to import it.
+- **Border styles** — none, thin, thick, **dashed**, or **rounded**.
+- **Right-to-left text** — a toggle for Arabic/Hebrew (right-aligned, correct shaping) on Design and Bulk.
+- **App accent theme** — recolour the app UI (More tab); labels still print black.
 - **Per-line text size** — set each line to XS–XL independently (the auto-fit
   scales them together).
 - **Inverse mode** — white-on-black labels for high-visibility warnings; QR and

@@ -167,6 +167,8 @@
               <option value="none">None</option>
               <option value="thin">Thin</option>
               <option value="thick">Thick</option>
+              <option value="dashed">Dashed</option>
+              <option value="rounded">Rounded</option>
             </select>
           </label>
         </div>
@@ -177,6 +179,7 @@
         </div>
 
         <label class="chip-check block"><input type="checkbox" id="d_invert" /> Inverse (white on black)</label>
+        <label class="chip-check block"><input type="checkbox" id="d_rtl" /> Right-to-left text (Arabic, Hebrew…)</label>
 
         <label class="chip-check block"><input type="checkbox" id="d_qr" /> Add QR code</label>
         <div class="field sub" id="d_qrWrap" hidden>
@@ -385,6 +388,8 @@
               <option value="none">None</option>
               <option value="thin">Thin</option>
               <option value="thick">Thick</option>
+              <option value="dashed">Dashed</option>
+              <option value="rounded">Rounded</option>
             </select>
           </label>
           <label class="field inline">
@@ -394,6 +399,7 @@
         </div>
 
         <label class="chip-check block"><input type="checkbox" id="b_invert" /> Inverse (white on black)</label>
+        <label class="chip-check block"><input type="checkbox" id="b_rtl" /> Right-to-left text</label>
 
         <p class="hint" style="margin-top:-2px">Tokens <code>{date}</code> and
         <code>{n}</code> work per row (<code>{n}</code> = row number).</p>
@@ -533,7 +539,12 @@
     <!-- ============ GUIDE ============ -->
     <main id="view-more" class="view">
       <div class="guide">
-        <h2>Backup &amp; restore</h2>
+        <h2>App accent colour</h2>
+        <p>Pick the app's accent theme. (Labels always print black — this only
+        recolours the app.)</p>
+        <div class="tape-swatches" id="accentSwatches"></div>
+
+        <h2 style="margin-top:26px">Backup &amp; restore</h2>
         <p>Everything (designs, logos, presets, saved labels, settings) lives on
         this device only. Export a backup file to keep it safe or move to another
         device.</p>
