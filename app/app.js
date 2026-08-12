@@ -93,7 +93,7 @@
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
     settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 }, accent: { c: '#C80016', b: '#F51A2E' } },
-    assets: { logos: [] }, saved: [], presets: [], scanLog: [], queue: [],
+    assets: { logos: [] }, saved: [], presets: [], scanLog: [], queue: [], userTemplates: [],
   });
 
   // Normalise a parsed blob into a complete state object.
@@ -105,6 +105,7 @@
       settings: { ...d.settings, ...p.settings, cal: { ...d.settings.cal, ...(p.settings && p.settings.cal) }, accent: { ...d.settings.accent, ...(p.settings && p.settings.accent) } },
       assets: { logos: (p.assets && p.assets.logos) || [] },
       saved: p.saved || [], presets: p.presets || [], scanLog: p.scanLog || [], queue: p.queue || [],
+      userTemplates: p.userTemplates || [],
     };
     // Migrate the old single-logo asset to the new gallery.
     if (p.assets && p.assets.logo && !s.assets.logos.length) {
@@ -988,18 +989,37 @@
   }
 
   function applyTemplate(id) {
-    const t = TEMPLATES.find(x => x.id === id);
+    const t = TEMPLATES.find(x => x.id === id) || state.userTemplates.find(x => x.id === id);
     if (!t) return;
-    state.design = { ...defaultDesign(), ...t.spec, bold: true, marginMm: state.design.marginMm };
+    state.design = { ...defaultDesign(), ...t.spec, marginMm: state.design.marginMm };
     fillDesignInputs();
     renderDesign();
     toast(`Loaded “${t.name.replace(/^\S+\s/, '')}”`);
   }
+  function renderTemplateRail() {
+    const rail = $('#templateRail');
+    rail.innerHTML =
+      TEMPLATES.map(t => `<button type="button" class="tpl-chip" data-tpl="${t.id}">${t.name}</button>`).join('') +
+      state.userTemplates.map(t =>
+        `<button type="button" class="tpl-chip user" data-tpl="${t.id}">★ ${escapeHtml(t.name)}` +
+        `<span class="tpl-del" data-tpldel="${t.id}" aria-label="Delete template">✕</span></button>`).join('') +
+      `<button type="button" class="tpl-chip add" id="saveTplBtn">＋ Save as template</button>`;
+  }
+  function saveAsTemplate() {
+    readDesign();
+    const name = (prompt('Name this template:', state.design.line1 || 'My template') || '').trim();
+    if (!name) return;
+    state.userTemplates.push({ id: uid(), name, spec: JSON.parse(JSON.stringify(state.design)) });
+    save(); renderTemplateRail();
+    toast('Template saved');
+  }
 
   function initDesign() {
-    $('#templateRail').innerHTML = TEMPLATES.map(t =>
-      `<button type="button" class="tpl-chip" data-tpl="${t.id}">${t.name}</button>`).join('');
+    renderTemplateRail();
     $('#templateRail').addEventListener('click', e => {
+      const del = e.target.closest('[data-tpldel]');
+      if (del) { e.stopPropagation(); state.userTemplates = state.userTemplates.filter(x => x.id !== del.dataset.tpldel); save(); renderTemplateRail(); return; }
+      if (e.target.closest('#saveTplBtn')) return saveAsTemplate();
       const c = e.target.closest('[data-tpl]'); if (c) applyTemplate(c.dataset.tpl);
     });
     fillDesignInputs();
@@ -1682,7 +1702,7 @@
       loadAllLogos(() => {
         fillDesignInputs(); fillBulkInputs(); renderDesign(); renderPresetRail();
         renderSaved(); renderQueue(); renderScanLog(); updateStorageMeter();
-        applyAccent(state.settings.accent); renderAccentSwatches();
+        applyAccent(state.settings.accent); renderAccentSwatches(); renderTemplateRail();
       });
       toast('Backup restored');
     };

@@ -13,6 +13,9 @@ step, no backend — your designs stay on your device.
 - **Starter templates** — one-tap presets: Storage tote, Tool/equipment,
   Shelf/bin, Cable flag (rotated), Scan-to-open (QR link), Address, Shipping,
   Name badge.
+- **Custom templates** — save the current design as your own one-tap starting
+  template in the Design tab (★ chips, alongside the built-ins); delete any
+  time. Persisted on-device and included in backups.
 - **Label designer** — **continuous** widths (12–88 mm; 88 mm = the 3.5″
   totes/tools cartridge) or **die-cut** sizes (36×88, 28×88, 26×88, 50×88,
   59×102 mm). Auto-fit or fixed length, **Rotate 90°** orientation, two
