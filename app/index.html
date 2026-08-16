@@ -574,6 +574,7 @@
         <p>Pick the app's accent theme. (Labels always print black — this only
         recolours the app.)</p>
         <div class="tape-swatches" id="accentSwatches"></div>
+        <div class="more-actions"><button class="btn-ghost" id="replayTour">↻ Replay the intro tour</button></div>
 
         <h2 style="margin-top:26px">Backup &amp; restore</h2>
         <p>Everything (designs, logos, presets, saved labels, settings) lives on
@@ -697,6 +698,20 @@
     <button id="updateReload">Reload</button>
   </div>
   <div class="toast" id="toast" hidden></div>
+
+  <div class="tour" id="tour" hidden>
+    <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+      <button class="tour-skip" id="tourSkip" aria-label="Skip tour">Skip</button>
+      <div class="tour-emoji" id="tourEmoji" aria-hidden="true">🏷️</div>
+      <h2 id="tourTitle">Welcome</h2>
+      <p id="tourBody"></p>
+      <div class="tour-dots" id="tourDots"></div>
+      <div class="tour-nav">
+        <button class="btn-ghost" id="tourBack">Back</button>
+        <button class="btn-primary" id="tourNext">Next</button>
+      </div>
+    </div>
+  </div>
 
   <script src="vendor/qrcode-generator.js"></script>
   <script src="vendor/jsbarcode-code128.min.js"></script>
