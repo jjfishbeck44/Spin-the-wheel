@@ -64,6 +64,7 @@ step, no backend — your designs stay on your device.
   test print.
 - **Scan capture** — on the **Scan** tab, add scans to a list and export it as
   CSV (a lightweight inventory check).
+- **First-run tour** — a quick guided intro on first open; replay it any time from the More tab.
 - **Update prompt** — when a new version deploys, a banner offers to reload.
 - **Batch presets** — save a Bulk tab format setup (cartridge, layout, font,
   orientation, logo…) as a named preset and re-apply it in one tap.

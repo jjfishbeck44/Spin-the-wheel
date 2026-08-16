@@ -92,7 +92,7 @@
   });
   const defaults = () => ({
     design: defaultDesign(), bulk: defaultBulk(),
-    settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 }, accent: { c: '#C80016', b: '#F51A2E' } },
+    settings: { units: 'mm', cal: { dx: 0, dy: 0, scale: 100 }, accent: { c: '#C80016', b: '#F51A2E' }, onboarded: false },
     assets: { logos: [] }, saved: [], presets: [], scanLog: [], queue: [], userTemplates: [],
   });
 
@@ -1825,7 +1825,44 @@
     loadAllLogos(() => rerenderActive());
     $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
     renderDesign();
+    initTour();
     initSW();
+  }
+
+  /* ---------------- First-run onboarding tour ---------------- */
+  const TOUR = [
+    { emoji: '🏷️', title: 'Welcome to Label Studio', body: 'Design and print labels for your Leitz Icon — fast, offline, and entirely on your phone. Here’s a 20-second tour.' },
+    { emoji: '✎', title: 'Design tab', body: 'Type your text, pick a cartridge, and watch the live preview. Add symbols, borders, per-line sizes, then export PNG / PDF / SVG or Print.', view: 'design' },
+    { emoji: '🔳', title: 'QR codes & barcodes', body: 'Add a QR that opens a link when scanned (like scanning a product in a store app), or a Code 128 barcode. Put a logo in the centre if you like.', view: 'design' },
+    { emoji: '▤', title: 'Bulk & templates', body: 'Make a whole batch from a list or CSV, generate serial numbers, and save your common labels as one-tap templates.', view: 'bulk' },
+    { emoji: '⛶', title: 'Scan to verify', body: 'Check a printed label actually scans — with the camera or a photo — and capture scans to a CSV list.', view: 'scan' },
+    { emoji: '📲', title: 'Install it', body: 'In Safari, tap Share → Add to Home Screen to run full-screen and offline. Everything stays on your device. Enjoy!', view: 'design' },
+  ];
+  let tourStep = 0;
+  function renderTour() {
+    const s = TOUR[tourStep];
+    if (s.view) switchView(s.view);
+    $('#tourEmoji').textContent = s.emoji;
+    $('#tourTitle').textContent = s.title;
+    $('#tourBody').textContent = s.body;
+    $('#tourDots').innerHTML = TOUR.map((_, i) => `<span class="${i === tourStep ? 'on' : ''}"></span>`).join('');
+    $('#tourBack').style.visibility = tourStep === 0 ? 'hidden' : 'visible';
+    $('#tourNext').textContent = tourStep === TOUR.length - 1 ? 'Get started' : 'Next';
+  }
+  function endTour() {
+    $('#tour').hidden = true;
+    switchView('design');
+    state.settings.onboarded = true; persist();   // write now, not debounced
+  }
+  function showTour() { tourStep = 0; $('#tour').hidden = false; renderTour(); }
+  function initTour() {
+    $('#tourSkip').addEventListener('click', endTour);
+    $('#tourBack').addEventListener('click', () => { if (tourStep > 0) { tourStep--; renderTour(); } });
+    $('#tourNext').addEventListener('click', () => {
+      if (tourStep < TOUR.length - 1) { tourStep++; renderTour(); } else endTour();
+    });
+    if ($('#replayTour')) $('#replayTour').addEventListener('click', showTour);
+    if (!state.settings.onboarded) setTimeout(showTour, 400);
   }
   async function boot() {
     state = await loadState();
